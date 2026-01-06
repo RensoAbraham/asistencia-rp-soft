@@ -1,0 +1,72 @@
+services:
+  # 1. Base de Datos (MySQL)
+  db:
+    image: mariadb:10.6
+    container_name: mysql_db
+    restart: always
+    environment:
+      MYSQL_DATABASE: bot_asistencia
+      MYSQL_USER: user
+      MYSQL_PASSWORD: password
+      MYSQL_ROOT_PASSWORD: root_password
+    ports:
+      - "3307:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+    networks:
+      - botnet
+    healthcheck:
+      test: "mysqladmin ping -h localhost -u root -proot_password"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # 2. Bot de Discord
+  bot:
+    build: ./bot asistencia main
+    container_name: discord_bot
+    restart: always
+    command: python bot.py
+    volumes:
+      - ./bot asistencia main:/app
+    environment:
+      - DISCORD_TOKEN=${DISCORD_TOKEN}
+      - DB_HOST=db
+      - DB_NAME=bot_asistencia
+      - DB_USER=user
+      - DB_PASSWORD=password
+      - DB_PORT=3306
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - botnet
+
+  # 3. Bot de Recuperación (Dedicated)
+  bot_recup:
+    build: ./bot recuperacion
+    container_name: recovery_bot
+    restart: always
+    command: python bot.py
+    volumes:
+      - ./bot recuperacion:/app
+    environment:
+      - DISCORD_TOKEN=${DISCORD_TOKEN_RECUPERACION}
+      - DB_HOST=db
+      - DB_NAME=bot_asistencia
+      - DB_USER=user
+      - DB_PASSWORD=password
+      - DB_PORT=3306
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - botnet
+
+networks:
+  botnet:
+    driver: bridge
+
+volumes:
+  db_data:

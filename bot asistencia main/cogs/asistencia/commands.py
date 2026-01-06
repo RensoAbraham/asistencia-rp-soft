@@ -1,0 +1,258 @@
+"""Comandos del módulo de asistencia"""
+
+import discord
+from discord import app_commands, Embed, Color
+from discord.ext import commands
+from utils import obtener_practicante, verificar_entrada, obtener_estado_asistencia, canal_permitido
+from datetime import datetime, time, timedelta
+import database as db
+import logging
+
+from .modals import SalidaAnticipadaModal
+
+
+class Asistencia(commands.GroupCog, name="asistencia"):
+    """Cog para gestionar comandos de asistencia"""
+    
+    def __init__(self, bot: commands.Bot):
+        super().__init__()
+        self.bot = bot
+
+    @app_commands.command(name='entrada', description="Registrar tu hora de entrada")
+    async def entrada(self, interaction: discord.Interaction):
+        if not await canal_permitido(interaction):
+            logging.warning(f'Canal no permitido para el usuario {interaction.user.display_name}.')
+            return
+        
+        await interaction.response.defer(ephemeral=True)
+
+        discord_id = interaction.user.id
+        nombre_usuario = interaction.user.mention
+        logging.info(f'Usuario {interaction.user.display_name} está intentando registrar entrada.')
+        practicante_id = await obtener_practicante(interaction, discord_id)
+        if not practicante_id:
+            logging.warning(f'Practicante no encontrado para el usuario {interaction.user.display_name}.')
+            return
+
+        fecha_actual = datetime.now().date()
+        hora_actual = datetime.now().time()
+        hora_inicio_permitida = time(7, 0)
+        hora_fin_permitida = time(14, 0)
+        dia_actual = datetime.now().weekday()
+
+        # Verificar si la hora actual está dentro del rango permitido y no es domingo
+        if not (hora_inicio_permitida <= hora_actual <= hora_fin_permitida) or dia_actual in [5, 6]:
+            await interaction.followup.send(
+                f"{nombre_usuario}, no puedes registrar tu entrada fuera del horario permitido.",
+                ephemeral=True
+            )
+            return
+
+        asistencia_existente = await verificar_entrada(practicante_id, fecha_actual)
+        
+        # Si ya existe una entrada para hoy, informar al usuario
+        if asistencia_existente:
+            await interaction.followup.send(
+                f"{nombre_usuario}, ya has registrado tu entrada el día de hoy.",
+                ephemeral=True
+            )
+            return
+
+        hora_limite_tardanza = time(8, 10, 59)
+        
+        # Determinar estado de asistencia
+        if hora_actual > hora_limite_tardanza:
+            estado_id = await obtener_estado_asistencia('Tardanza')
+            mensaje = f"{nombre_usuario}, se ha registrado tu entrada a las {hora_actual.strftime('%H:%M')} con tardanza."
+        else:
+            estado_id = await obtener_estado_asistencia('Presente')
+            mensaje = f"{nombre_usuario}, se ha registrado tu entrada a las {hora_actual.strftime('%H:%M')}."
+            
+        if not estado_id:
+            await interaction.followup.send(
+                f"{nombre_usuario}, no se registró tu asistencia el día de hoy.",
+                ephemeral=True
+            )
+            return
+            
+        query_insert_asistencia = """
+        INSERT INTO asistencia (practicante_id, fecha, hora_entrada, estado_id)
+        VALUES (%s, %s, %s, %s)
+        """
+        await db.execute_query(query_insert_asistencia, (practicante_id, fecha_actual, hora_actual, estado_id))
+        logging.info(f'Entrada registrada para el usuario {interaction.user.display_name}.')
+        await interaction.followup.send(mensaje, ephemeral=True)
+
+    @app_commands.command(name='salida', description="Registrar tu hora de salida")
+    async def salida(self, interaction: discord.Interaction):
+        if not await canal_permitido(interaction):
+            logging.warning(f'Canal no permitido para el usuario {interaction.user.display_name}.')
+            return
+        
+        discord_id = interaction.user.id
+        nombre_usuario = interaction.user.mention
+        logging.info(f'Usuario {interaction.user.display_name} está intentando registrar salida.')
+        
+        practicante_id = await obtener_practicante(interaction, discord_id)
+        if not practicante_id:
+            logging.warning(f'Practicante no encontrado para el usuario {interaction.user.display_name}.')
+            return
+
+        fecha_actual = datetime.now().date()
+        query_asistencia = "SELECT id, hora_salida FROM asistencia WHERE practicante_id = %s AND fecha = %s"
+        asistencia = await db.fetch_one(query_asistencia, (practicante_id, fecha_actual))
+        
+        if not asistencia:
+            await interaction.response.send_message(
+                f"{nombre_usuario}, no has registrado tu entrada el día de hoy.",
+                ephemeral=True
+            )
+            return
+
+        if asistencia['hora_salida']:
+            await interaction.response.send_message(
+                f"{nombre_usuario}, ya has registrado tu salida el día de hoy.",
+                ephemeral=True
+            )
+            return
+
+        hora_actual = datetime.now().time()
+
+        if hora_actual < time(14, 0):
+            # Abrir modal para salida anticipada
+            modal = SalidaAnticipadaModal(hora_actual, asistencia, nombre_usuario)
+            await interaction.response.send_modal(modal)
+        else:
+            await interaction.response.defer(ephemeral=True)
+            # Salida normal, solo actualizar hora
+            query_update_salida = "UPDATE asistencia SET hora_salida = %s WHERE id = %s"
+            await db.execute_query(query_update_salida, (hora_actual, asistencia['id']))
+            logging.info(f'Salida registrada para el usuario {interaction.user.display_name}.')
+            await interaction.followup.send(
+                f"{nombre_usuario}, se ha registrado tu salida a las {hora_actual.strftime('%H:%M')}.",
+                ephemeral=True
+            )
+
+    @app_commands.command(name='estado', description="Consultar tu estado de asistencia del día")
+    async def estado(self, interaction: discord.Interaction):
+        if not await canal_permitido(interaction):
+            logging.warning(f'Canal no permitido para el usuario {interaction.user.display_name}.')
+            return
+        
+        await interaction.response.defer(ephemeral=True)
+
+        discord_id = interaction.user.id
+        nombre_usuario = interaction.user.display_name
+        logging.info(f'Usuario {nombre_usuario} está consultando su estado de asistencia.')
+        practicante_id = await obtener_practicante(interaction, discord_id)
+        if not practicante_id:
+            logging.warning(f'Practicante no encontrado para el usuario {interaction.user.display_name}.')
+            return
+            
+        # Consultar estado de asistencia
+        fecha_actual = datetime.now().date()
+        query_estado = """
+        SELECT a.hora_entrada, a.hora_salida, ea.estado
+        FROM asistencia a
+        INNER JOIN estado_asistencia ea ON a.estado_id = ea.id
+        WHERE a.practicante_id = %s AND a.fecha = %s
+        """
+        resultado = await db.fetch_one(query_estado, (practicante_id, fecha_actual))
+        
+        # Embed de respuesta
+        embed = Embed(
+            title=f"📍 Estado de Asistencia para hoy, {nombre_usuario}",
+            color=Color.orange()
+        )
+
+        if resultado:
+            # Si tiene un registro, mostrar el estado, hora de entrada y salida
+            embed.add_field(name="✅ Estado de Asistencia", value=f"**{resultado['estado']}**", inline=False)
+            embed.add_field(name="🕒 Hora de Entrada", value=f"{resultado['hora_entrada'] or 'No registrada'}", inline=False)
+            embed.add_field(name="⏳ Hora de Salida", value=f"{resultado['hora_salida'] or 'No registrada'}", inline=False)
+        else:
+            # Si no tiene registro, mostrar mensaje de falta injustificada
+            embed.add_field(name="❌ Estado de Asistencia", value="Falta injustificada", inline=False)
+
+        embed.set_footer(text="Si tienes dudas, contacta con el administrador.")
+
+        await interaction.followup.send(embed=embed, ephemeral=True)
+
+    @app_commands.command(name='historial', description="Consultar tu historial de asistencia")
+    @app_commands.describe(dias="Cantidad de días a mostrar (1-15)")
+    async def historial(self, interaction: discord.Interaction, dias: int = 7):
+        if not await canal_permitido(interaction):
+            logging.warning(f'Canal no permitido para el usuario {interaction.user.display_name}.')
+            return
+        
+        await interaction.response.defer(ephemeral=True)
+
+        discord_id = interaction.user.id
+        nombre_usuario = interaction.user.mention
+        logging.info(f'Usuario {interaction.user.display_name} está consultando su historial de asistencia.')
+        practicante_id = await obtener_practicante(interaction, discord_id)
+        if not practicante_id:
+            logging.warning(f'Practicante no encontrado para el usuario {interaction.user.display_name}.')
+            return
+        
+        # Validar el rango de días
+        if dias < 1 or dias > 15:
+            await interaction.followup.send(
+                f"{nombre_usuario}, el número de días debe estar entre 1 y 15.",
+                ephemeral=True
+            )
+            return
+        
+        fecha_actual = datetime.now().date()
+        fecha_inicio = fecha_actual - timedelta(days=dias)
+
+        query_historial = """
+            SELECT date_format(a.fecha, '%%m-%%d') as fecha, a.hora_entrada, a.hora_salida, ea.estado
+            FROM asistencia a
+            INNER JOIN estado_asistencia ea ON ea.id = a.estado_id
+            WHERE Practicante_id = %s AND fecha >= %s
+            ORDER BY a.fecha DESC
+        """
+
+        resultados = await db.fetch_all(query_historial, (practicante_id, fecha_inicio))
+
+        if not resultados:
+            await interaction.followup.send(
+                f"{nombre_usuario}, no se encontraron registros en los últimos {dias} días.",
+                ephemeral=True
+            )
+            return
+        
+        # Crear el Embed para el historial
+        embed = Embed(
+            title=f"📅 Historial de Asistencia - Últimos {dias} días",
+            description=f"**{interaction.user.display_name}**, aquí está tu historial de asistencia para los últimos {dias} días:",
+            color=Color.blue()
+        )
+
+        # Recorrer los resultados y añadirlos al Embed
+        for resultado in resultados:
+            fecha = resultado['fecha']
+            entrada = resultado['hora_entrada'] or 'No registrada'
+            salida = resultado['hora_salida'] or 'No registrada'
+            estado = resultado['estado'] or 'Falta injustificada'
+
+            # Añadir el emoji al estado
+            if estado in ['Presente', 'Falta Recuperada']:
+                estado_emoji = "✅"  # Verde: Asistencia
+            elif estado == 'Falta Injustificada':
+                estado_emoji = "❌"  # Rojo: Falta injustificada
+            else:
+                estado_emoji = "🟠"  # Naranja para otros estados
+
+            # Añadir cada día al Embed
+            embed.add_field(
+                name=f"Fecha: **{fecha}** {estado_emoji}",
+                value=f"**Entrada**: {entrada} | **Salida**: {salida} | **Estado**: {estado}",
+                inline=False
+            )
+        
+        embed.set_footer(text="Si tienes dudas, contacta con el administrador.")
+
+        await interaction.followup.send(embed=embed, ephemeral=True)
+
