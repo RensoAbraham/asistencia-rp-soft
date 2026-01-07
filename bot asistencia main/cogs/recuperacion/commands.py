@@ -75,7 +75,7 @@ class Recuperacion(commands.Cog):
 
         # Insertar la recuperación en la base de datos
         query_insert_recuperacion = """
-        INSERT INTO asistencia_recuperacion (practicante_id, fecha, hora_entrada)
+        INSERT INTO asistencia_recuperacion (practicante_id, fecha_recuperacion, hora_entrada)
         VALUES (%s, %s, %s)
         """
         await db.execute_query(query_insert_recuperacion, (practicante_id, fecha_actual, hora_actual))

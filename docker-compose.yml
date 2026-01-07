@@ -43,27 +43,6 @@ services:
     networks:
       - botnet
 
-  # 3. Bot de Recuperación (Dedicated)
-  bot_recup:
-    build: ./bot recuperacion
-    container_name: recovery_bot
-    restart: always
-    command: python bot.py
-    volumes:
-      - ./bot recuperacion:/app
-    environment:
-      - DISCORD_TOKEN=${DISCORD_TOKEN_RECUPERACION}
-      - DB_HOST=db
-      - DB_NAME=bot_asistencia
-      - DB_USER=user
-      - DB_PASSWORD=password
-      - DB_PORT=3306
-    depends_on:
-      db:
-        condition: service_healthy
-    networks:
-      - botnet
-
 networks:
   botnet:
     driver: bridge
