@@ -96,6 +96,29 @@ class Reportes(commands.Cog):
             logging.error(f"Error generando reporte: {e}")
             await interaction.followup.send(f"❌ Ocurrió un error al generar el reporte: {e}", ephemeral=True)
 
+    @app_commands.command(name='set_horas_base', description="Establecer horas históricas acumuladas para un practicante")
+    @es_admin_check()
+    @app_commands.describe(usuario="El practicante a configurar", horas="Horas enteras (ej: 300)")
+    async def set_horas_base(self, interaction: discord.Interaction, usuario: discord.User, horas: int):
+        await interaction.response.defer(ephemeral=True)
+        
+        try:
+            # Convertir entero a formato TIME 'HH:00:00'
+            horas_formato = f"{horas}:00:00"
+            
+            # Actualizar en BD
+            query = "UPDATE practicante SET horas_base = %s WHERE id_discord = %s"
+            filas = await db.execute_query(query, (horas_formato, usuario.id))
+            
+            if filas > 0:
+                await interaction.followup.send(f"✅ Se han establecido **{horas} horas base** para {usuario.mention}. Sus cálculos ahora partirán de {horas}h.", ephemeral=True)
+            else:
+                await interaction.followup.send(f"⚠️ No se encontró al practicante {usuario.mention} en la base de datos.", ephemeral=True)
+                
+        except Exception as e:
+            logging.error(f"Error set_horas_base: {e}")
+            await interaction.followup.send(f"❌ Error al guardar datos: {e}", ephemeral=True)
+
     @reporte_admin.error
     async def reporte_admin_error(self, interaction: discord.Interaction, error):
         if isinstance(error, app_commands.CheckFailure):

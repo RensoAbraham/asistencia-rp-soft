@@ -86,60 +86,21 @@ async def ensure_db_setup():
         correo VARCHAR(255) NOT NULL,
         semestre INT DEFAULT 1,
         estado VARCHAR(20) DEFAULT 'activo',
+        horas_base TIME DEFAULT '00:00:00',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         is_active BOOLEAN DEFAULT TRUE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     """)
 
-    # 2. Tabla estado_asistencia
-    await execute_query("""
-    CREATE TABLE IF NOT EXISTS estado_asistencia (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        estado VARCHAR(50) NOT NULL UNIQUE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-    """)
+    # 1.1 Migración: Asegurar que la columna horas_base exista (si la tabla ya existía)
+    try:
+        await execute_query("ALTER TABLE practicante ADD COLUMN horas_base TIME DEFAULT '00:00:00';")
+    except Exception:
+        pass # La columna ya existe o error ignorado
 
-    # 3. Insertar estados base
-    for estado in ['Presente', 'Tardanza', 'Falta Injustificada', 'Falta Recuperada', 'Permiso']:
-        await execute_query("INSERT IGNORE INTO estado_asistencia (estado) VALUES (%s)", (estado,))
+    # ... (Resto de tablas) ...
 
-    # 4. Tabla asistencia
-    await execute_query("""
-    CREATE TABLE IF NOT EXISTS asistencia (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        practicante_id INT NOT NULL,
-        estado_id INT NOT NULL,
-        fecha DATE NOT NULL,
-        hora_entrada TIME,
-        hora_salida TIME,
-        observaciones TEXT,
-        motivo VARCHAR(255),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        FOREIGN KEY (practicante_id) REFERENCES practicante(id) ON DELETE CASCADE,
-        FOREIGN KEY (estado_id) REFERENCES estado_asistencia(id),
-        UNIQUE KEY unique_asistencia_dia (practicante_id, fecha)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-    """)
-
-    # 5. Tabla asistencia_recuperacion
-    await execute_query("""
-    CREATE TABLE IF NOT EXISTS asistencia_recuperacion (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        practicante_id INT NOT NULL,
-        fecha_recuperacion DATE NOT NULL,
-        hora_entrada TIME NOT NULL,
-        hora_salida TIME NULL,
-        motivo TEXT NULL,
-        estado VARCHAR(20) DEFAULT 'Pendiente',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        FOREIGN KEY (practicante_id) REFERENCES practicante(id) ON DELETE CASCADE,
-        UNIQUE KEY unique_recuperacion_dia (practicante_id, fecha_recuperacion)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-    """)
-    
-    # 6. Vista para Reporte Excel (Cálculos automáticos)
+    # 6. Vista para Reporte Excel y Metabase (Cálculos automáticos con Horas Base)
     await execute_query("""
     CREATE OR REPLACE VIEW reporte_asistencia AS
     SELECT 
@@ -149,10 +110,27 @@ async def ensure_db_setup():
         a.hora_entrada AS Entrada,
         a.hora_salida AS Salida,
         TIMEDIFF(a.hora_salida, a.hora_entrada) AS Horas_Sesion,
-        (SELECT SEC_TO_TIME(SUM(TIME_TO_SEC(TIMEDIFF(a2.hora_salida, a2.hora_entrada))))
-         FROM asistencia a2 
-         WHERE a2.practicante_id = p.id AND a2.hora_salida IS NOT NULL AND a2.fecha <= a.fecha
+        
+        -- Cálculo de Horas Acumuladas (Sesiones Previas + Sesión Actual + Horas Base)
+        ADDTIME(
+            IFNULL(p.horas_base, '00:00:00'),
+            (SELECT SEC_TO_TIME(SUM(TIME_TO_SEC(TIMEDIFF(a2.hora_salida, a2.hora_entrada))))
+             FROM asistencia a2 
+             WHERE a2.practicante_id = p.id AND a2.hora_salida IS NOT NULL AND a2.fecha <= a.fecha)
         ) AS Horas_Acumuladas_Hasta_Hoy,
+        
+        -- Metas y Faltantes (Calculado al vuelo)
+        '480:00:00' AS Meta_Horas,
+        
+        TIMEDIFF('480:00:00', 
+            ADDTIME(
+                IFNULL(p.horas_base, '00:00:00'),
+                (SELECT SEC_TO_TIME(SUM(TIME_TO_SEC(TIMEDIFF(a2.hora_salida, a2.hora_entrada))))
+                 FROM asistencia a2 
+                 WHERE a2.practicante_id = p.id AND a2.hora_salida IS NOT NULL AND a2.fecha <= a.fecha)
+            )
+        ) AS Horas_Restantes,
+        
         ea.estado AS Estado
     FROM practicante p
     JOIN asistencia a ON p.id = a.practicante_id
