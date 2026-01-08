@@ -165,15 +165,17 @@ async def send_metrics_to_backend():
 # Evento de inicio del bot
 @bot.event
 async def setup_hook():
-    # logging.info('Iniciando conexión a la base de datos...')
-    # await init_db_pool()
-    # logging.info('Conexión a la base de datos establecida.')
-    # logging.info('Sincronizando comandos...')
+    import database as db
+    logging.info('Verificando y configurando base de datos...')
+    await db.ensure_db_setup()
+    
+    logging.info('Cargando extensiones...')
     await bot.load_extension('cogs.asistencia')
     await bot.load_extension('cogs.faltas')
     await bot.load_extension('cogs.recuperacion')
+    await bot.load_extension('cogs.reportes')
     await bot.tree.sync()
-    # logging.info('Comandos sincronizados.')
+    logging.info('Comandos sincronizados.')
     # Nota: Los cogs ahora están organizados en carpetas (asistencia/, faltas/, recuperacion/)
     logging.info('Iniciando tarea de envío de métricas...')
     send_metrics_to_backend.start()
@@ -203,5 +205,24 @@ async def main():
         # logging.info("Conexión a la base de datos cerrada.")
         await bot.close()
 
+# Dummy Server para Render (Health Check)
+async def start_dummy_server():
+    from aiohttp import web
+    async def handle(request):
+        return web.Response(text="Bot is running!")
+    
+    app = web.Application()
+    app.router.add_get('/', handle)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    port = int(os.environ.get("PORT", 8080))
+    site = web.TCPSite(runner, '0.0.0.0', port)
+    await site.start()
+    logging.info(f"Dummy Server iniciado en el puerto {port}")
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    # Iniciar dummy server antes del bot
+    loop.create_task(start_dummy_server())
+    loop.run_until_complete(main())
