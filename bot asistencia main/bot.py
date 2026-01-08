@@ -69,8 +69,17 @@ bot = commands.Bot(command_prefix='/', intents=intents)
 
 # Diccionario de canales permitidos por servidor
 bot.canales_permitidos = {
-    1389959112556679239: [1390353417079361607, 1390013888791183370, 1395093712832565339, 1400200650402431007, 1404466917002969128, 1412152264969162969, 1415770590975102986], # Servidor RP Soft
-    1405602519635202048: [1406544076534190110] # Servidor Laboratorios
+    # Servidor RP Soft (Producción)
+    1389959112556679239: [
+        1390353417079361607, 1390013888791183370, 1395093712832565339, 1400200650402431007, 1404466917002969128, 1412152264969162969, 1415770590975102986,
+        1457747478592884878, # Canal Principal de Asistencia
+        1457747701038059643  # Canal de Recuperación
+    ],
+    # Servidor Laboratorios (Pruebas)
+    1405602519635202048: [
+        1406544076534190110,
+        1457802290093228093 # Canal Pruebas Actual
+    ]
 }
 
 # Diccionario de roles permitidos para recuperación por servidor
