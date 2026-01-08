@@ -15,6 +15,8 @@ DB_CONFIG = {
     "db": os.getenv("DB_NAME"),
     "port": int(os.getenv("DB_PORT")),
     "autocommit": False,
+    # Configuración SSL para Aiven (si existe el certificado)
+    "ssl": {"ca": "ca.pem"} if os.path.exists("ca.pem") else None
 }
 
 # Pool de conexiones global
@@ -74,3 +76,93 @@ async def execute_query(query: str, params: Optional[Union[Tuple, Dict[str, Any]
         except aiomysql.Error as e:
             await conn.rollback()
             raise RuntimeError(f"Error ejecutando execute_query: {e}") from e
+
+async def ensure_db_setup():
+    """Verifica y crea las tablas necesarias y datos iniciales."""
+    import logging
+    logging.info("Verificando integridad de la base de datos...")
+    
+    # 1. Tabla practicante
+    await execute_query("""
+    CREATE TABLE IF NOT EXISTS practicante (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        id_discord BIGINT NOT NULL UNIQUE,
+        nombre VARCHAR(100) NOT NULL,
+        apellido VARCHAR(100) NOT NULL,
+        correo VARCHAR(255) NOT NULL,
+        semestre INT DEFAULT 1,
+        estado VARCHAR(20) DEFAULT 'activo',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        is_active BOOLEAN DEFAULT TRUE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    """)
+
+    # 2. Tabla estado_asistencia
+    await execute_query("""
+    CREATE TABLE IF NOT EXISTS estado_asistencia (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        estado VARCHAR(50) NOT NULL UNIQUE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    """)
+
+    # 3. Insertar estados base
+    for estado in ['Presente', 'Tardanza', 'Falta Injustificada', 'Falta Recuperada', 'Permiso']:
+        await execute_query("INSERT IGNORE INTO estado_asistencia (estado) VALUES (%s)", (estado,))
+
+    # 4. Tabla asistencia
+    await execute_query("""
+    CREATE TABLE IF NOT EXISTS asistencia (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        practicante_id INT NOT NULL,
+        estado_id INT NOT NULL,
+        fecha DATE NOT NULL,
+        hora_entrada TIME,
+        hora_salida TIME,
+        observaciones TEXT,
+        motivo VARCHAR(255),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (practicante_id) REFERENCES practicante(id) ON DELETE CASCADE,
+        FOREIGN KEY (estado_id) REFERENCES estado_asistencia(id),
+        UNIQUE KEY unique_asistencia_dia (practicante_id, fecha)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    """)
+
+    # 5. Tabla asistencia_recuperacion
+    await execute_query("""
+    CREATE TABLE IF NOT EXISTS asistencia_recuperacion (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        practicante_id INT NOT NULL,
+        fecha_recuperacion DATE NOT NULL,
+        hora_entrada TIME NOT NULL,
+        hora_salida TIME NULL,
+        motivo TEXT NULL,
+        estado VARCHAR(20) DEFAULT 'Pendiente',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (practicante_id) REFERENCES practicante(id) ON DELETE CASCADE,
+        UNIQUE KEY unique_recuperacion_dia (practicante_id, fecha_recuperacion)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    """)
+    
+    # 6. Vista para Reporte Excel (Cálculos automáticos)
+    await execute_query("""
+    CREATE OR REPLACE VIEW reporte_asistencia AS
+    SELECT 
+        p.nombre AS Nombre,
+        p.apellido AS Apellido,
+        a.fecha AS Fecha,
+        a.hora_entrada AS Entrada,
+        a.hora_salida AS Salida,
+        TIMEDIFF(a.hora_salida, a.hora_entrada) AS Horas_Sesion,
+        (SELECT SEC_TO_TIME(SUM(TIME_TO_SEC(TIMEDIFF(a2.hora_salida, a2.hora_entrada))))
+         FROM asistencia a2 
+         WHERE a2.practicante_id = p.id AND a2.hora_salida IS NOT NULL AND a2.fecha <= a.fecha
+        ) AS Horas_Acumuladas_Hasta_Hoy,
+        ea.estado AS Estado
+    FROM practicante p
+    JOIN asistencia a ON p.id = a.practicante_id
+    JOIN estado_asistencia ea ON a.estado_id = ea.id;
+    """)
+    
+    logging.info("Base de datos verificada e inicializada correctamente.")
