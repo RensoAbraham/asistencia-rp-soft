@@ -205,24 +205,5 @@ async def main():
         # logging.info("Conexión a la base de datos cerrada.")
         await bot.close()
 
-# Dummy Server para Render (Health Check)
-async def start_dummy_server():
-    from aiohttp import web
-    async def handle(request):
-        return web.Response(text="Bot is running!")
-    
-    app = web.Application()
-    app.router.add_get('/', handle)
-    runner = web.AppRunner(app)
-    await runner.setup()
-    port = int(os.environ.get("PORT", 8080))
-    site = web.TCPSite(runner, '0.0.0.0', port)
-    await site.start()
-    logging.info(f"Dummy Server iniciado en el puerto {port}")
-
 if __name__ == "__main__":
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    # Iniciar dummy server antes del bot
-    loop.create_task(start_dummy_server())
-    loop.run_until_complete(main())
+    asyncio.run(main())

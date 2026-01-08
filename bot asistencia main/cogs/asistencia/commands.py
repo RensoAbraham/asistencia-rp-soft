@@ -210,7 +210,7 @@ class Asistencia(commands.GroupCog, name="asistencia"):
             SELECT date_format(a.fecha, '%%m-%%d') as fecha, a.hora_entrada, a.hora_salida, ea.estado
             FROM asistencia a
             INNER JOIN estado_asistencia ea ON ea.id = a.estado_id
-            WHERE Practicante_id = %s AND fecha >= %s
+            WHERE practicante_id = %s AND fecha >= %s
             ORDER BY a.fecha DESC
         """
 

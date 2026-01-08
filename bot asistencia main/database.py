@@ -1,10 +1,6 @@
-import os
-from typing import Any, Optional, List, Dict, Tuple, Union, AsyncIterator
-import aiomysql
-import asyncio
-from contextlib import asynccontextmanager
+import database as db
 from dotenv import load_dotenv
-
+import aiomysql
 
 load_dotenv()
 
@@ -15,8 +11,6 @@ DB_CONFIG = {
     "db": os.getenv("DB_NAME"),
     "port": int(os.getenv("DB_PORT")),
     "autocommit": False,
-    # Configuración SSL para Aiven (si existe el certificado)
-    "ssl": {"ca": "ca.pem"} if os.path.exists("ca.pem") else None
 }
 
 # Pool de conexiones global
