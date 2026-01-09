@@ -104,7 +104,53 @@ async def ensure_db_setup():
     except Exception:
         pass # La columna ya existe o error ignorado
 
-    # ... (Resto de tablas) ...
+    # 2. Tabla estado_asistencia
+    await execute_query("""
+    CREATE TABLE IF NOT EXISTS estado_asistencia (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        estado VARCHAR(50) NOT NULL UNIQUE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    """)
+
+    # 3. Insertar estados base
+    for estado in ['Presente', 'Tardanza', 'Falta Injustificada', 'Falta Recuperada', 'Permiso']:
+        await execute_query("INSERT IGNORE INTO estado_asistencia (estado) VALUES (%s)", (estado,))
+
+    # 4. Tabla asistencia
+    await execute_query("""
+    CREATE TABLE IF NOT EXISTS asistencia (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        practicante_id INT NOT NULL,
+        estado_id INT NOT NULL,
+        fecha DATE NOT NULL,
+        hora_entrada TIME,
+        hora_salida TIME,
+        observaciones TEXT,
+        motivo VARCHAR(255),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (practicante_id) REFERENCES practicante(id) ON DELETE CASCADE,
+        FOREIGN KEY (estado_id) REFERENCES estado_asistencia(id),
+        UNIQUE KEY unique_asistencia_dia (practicante_id, fecha)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    """)
+
+    # 5. Tabla asistencia_recuperacion
+    await execute_query("""
+    CREATE TABLE IF NOT EXISTS asistencia_recuperacion (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        practicante_id INT NOT NULL,
+        fecha_recuperacion DATE NOT NULL,
+        hora_entrada TIME NOT NULL,
+        hora_salida TIME NULL,
+        motivo TEXT NULL,
+        estado VARCHAR(20) DEFAULT 'Pendiente',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (practicante_id) REFERENCES practicante(id) ON DELETE CASCADE,
+        UNIQUE KEY unique_recuperacion_dia (practicante_id, fecha_recuperacion)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    """)
 
     # 6. Vista para Reporte Excel y Metabase (Cálculos automáticos con Horas Base)
     await execute_query("""
