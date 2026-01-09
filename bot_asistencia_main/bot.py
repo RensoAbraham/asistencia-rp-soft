@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 import asyncio
 import logging
 import datetime as _datetime
+import datetime
 from zoneinfo import ZoneInfo
 
 # Cargar variables de entorno
