@@ -179,10 +179,11 @@ async def setup_hook():
     await db.ensure_db_setup()
     
     logging.info('Cargando extensiones...')
-    await bot.load_extension('cogs.asistencia')
-    await bot.load_extension('cogs.faltas')
-    await bot.load_extension('cogs.recuperacion')
-    await bot.load_extension('cogs.reportes')
+    # Ajuste: Cargar explícitamente .commands ya que no usamos __init__.py en las subcarpetas
+    await bot.load_extension('cogs.asistencia.commands')
+    # await bot.load_extension('cogs.faltas.commands') # Faltas suele estar desactivado o si existe lo activamos
+    await bot.load_extension('cogs.recuperacion.commands')
+    await bot.load_extension('cogs.reportes.commands')
     await bot.tree.sync()
     logging.info('Comandos sincronizados.')
     # Nota: Los cogs ahora están organizados en carpetas (asistencia/, faltas/, recuperacion/)
