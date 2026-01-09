@@ -10,7 +10,7 @@ services:
       MYSQL_PASSWORD: password
       MYSQL_ROOT_PASSWORD: root_password
     ports:
-      - "3307:3306"
+      - "3308:3306" # Puerto 3308 para evitar conflicto
     volumes:
       - db_data:/var/lib/mysql
     networks:
@@ -24,12 +24,12 @@ services:
 
   # 2. Bot de Discord
   bot:
-    build: ./bot asistencia main
+    build: ./bot_asistencia_main
     container_name: discord_bot
     restart: always
     command: python bot.py
     volumes:
-      - ./bot asistencia main:/app
+      - ./bot_asistencia_main:/app
     environment:
       - DISCORD_TOKEN=${DISCORD_TOKEN}
       - DB_HOST=db
