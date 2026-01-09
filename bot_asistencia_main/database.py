@@ -1,6 +1,12 @@
-import database as db
-from dotenv import load_dotenv
+import os
 import aiomysql
+from dotenv import load_dotenv
+from typing import Optional, Union, Tuple, Dict, Any, List
+from contextlib import asynccontextmanager
+from collections.abc import AsyncIterator
+
+# Evitar import circular si es posible, pero mantenemos si es necesario o eliminamos si no se usa
+# import database as db  <-- Esto parece redundante si estams en database.py, lo comento.
 
 load_dotenv()
 
