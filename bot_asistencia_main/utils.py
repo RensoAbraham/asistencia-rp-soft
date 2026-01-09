@@ -10,10 +10,11 @@ async def obtener_practicante(interaction, discord_id):
     
     # Si no se encuentra el practicante, informar al usuario
     if not practicante:
-        await interaction.followup.send(
-            f"{nombre_usuario}, no estás registrado como practicante.",
-            ephemeral=True
-        )
+        msg = f"{nombre_usuario}, no estás registrado como practicante en este servidor (BD limpia)."
+        if interaction.response.is_done():
+            await interaction.followup.send(msg, ephemeral=True)
+        else:
+            await interaction.response.send_message(msg, ephemeral=True)
         return None
     return practicante['id']
 
