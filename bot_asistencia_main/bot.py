@@ -9,22 +9,6 @@ import logging
 import datetime as _datetime
 from zoneinfo import ZoneInfo
 
-
-# Sobrescribir datetime para usar la zona horaria de Lima
-class datetimeLima(_datetime.datetime):
-    @classmethod
-    def now(cls, tz=None):
-        tz = ZoneInfo("America/Lima")
-        return super().now(tz=tz)
-
-    @classmethod
-    def utcnow(cls):
-        tz = ZoneInfo("America/Lima")
-        return super().now(tz=tz)
-
-_datetime.datetime = datetimeLima
-import datetime
-
 # Cargar variables de entorno
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
@@ -37,7 +21,7 @@ logging.basicConfig(
     datefmt='%Y-%m-%d %H:%M:%S' 
 )
 
-logging.Formatter.converter = lambda *args: datetime.datetime.now(ZoneInfo("America/Lima")).timetuple()
+# logging.Formatter.converter = lambda *args: datetime.datetime.now(ZoneInfo("America/Lima")).timetuple()
 
 # Clase para métricas del bot
 class BotMetrics:
@@ -181,9 +165,17 @@ async def setup_hook():
     logging.info('Cargando extensiones...')
     # Ajuste: Cargar explícitamente .commands ya que no usamos __init__.py en las subcarpetas
     await bot.load_extension('cogs.asistencia.commands')
-    # await bot.load_extension('cogs.faltas.commands') # Faltas suele estar desactivado o si existe lo activamos
+    logging.info('...Asistencia cargada')
+    
+    # await bot.load_extension('cogs.faltas.commands') 
+    
     await bot.load_extension('cogs.recuperacion.commands')
+    logging.info('...Recuperación cargada')
+    
     await bot.load_extension('cogs.reportes.commands')
+    logging.info('...Reportes cargada')
+    
+    logging.info('Sincronizando comandos (tree.sync)...')
     await bot.tree.sync()
     logging.info('Comandos sincronizados.')
     # Nota: Los cogs ahora están organizados en carpetas (asistencia/, faltas/, recuperacion/)
