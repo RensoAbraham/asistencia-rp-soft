@@ -256,3 +256,6 @@ class Asistencia(commands.GroupCog, name="asistencia"):
 
         await interaction.followup.send(embed=embed, ephemeral=True)
 
+
+async def setup(bot):
+    await bot.add_cog(Asistencia(bot))
