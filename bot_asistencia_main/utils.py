@@ -13,7 +13,9 @@ def es_domingo() -> bool:
 
 
 async def obtener_practicante(interaction, discord_id):
+    import logging
     nombre_usuario = interaction.user.mention
+    logging.info(f"🔍 Buscando practicante en BD para: {interaction.user} (ID: {discord_id})")
     query_practicante = "SELECT id FROM practicante WHERE id_discord = %s"
     practicante = await db.fetch_one(query_practicante, (discord_id,))
     

@@ -76,9 +76,14 @@ def get_practicantes_from_sheet():
             
             if not raw_id or not nombre_completo: continue
             
-            try:
                 # Limpiar ID (a veces Excel lo pone como científico 1.23E+17)
-                discord_id = int(float(raw_id))
+                # Usamos una forma más segura para no perder precisión con números grandes
+                raw_id_clean = "".join(filter(str.isdigit, raw_id))
+                if not raw_id_clean:
+                    # Si no hay dígitos, intentamos float por si acaso, pero con cuidado
+                    discord_id = int(float(raw_id))
+                else:
+                    discord_id = int(raw_id_clean)
                 
                 # Dividir nombre
                 partes = nombre_completo.split(' ', 1)
