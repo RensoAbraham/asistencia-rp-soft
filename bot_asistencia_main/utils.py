@@ -42,13 +42,27 @@ async def obtener_estado_asistencia(estado_nombre):
 async def canal_permitido(interaction: discord.Interaction) -> bool:
     servidor_id = interaction.guild.id
     bot = interaction.client
+    canal_id = interaction.channel.id
     
+    # Lista global de canales oficiales (Asistencia, Recuperación, Tests)
+    # Estos siempre están permitidos sin importar el servidor
+    canales_oficiales = [
+        1457747478592884878, # Canal Principal Asistencia
+        1457747701038059643, # Canal Recuperación
+        1457802290093228093  # Canal de Tests
+    ]
+    
+    if canal_id in canales_oficiales:
+        return True
+
     canales_permitidos = bot.canales_permitidos.get(servidor_id, [])
 
-    # Verificar si el canal es permitido
-    if interaction.channel.id not in canales_permitidos:
+    # Verificar si el canal es permitido según configuración de bot.py
+    if canal_id not in canales_permitidos:
+        import logging
+        logging.warning(f"🚫 Canal denegado en Servidor {servidor_id} (Canal ID: {canal_id})")
         await interaction.response.send_message(
-            f"Este comando no está habilitado en este canal (ID: {interaction.channel.id}). Por favor, usa los canales oficiales.",
+            f"Este comando no está habilitado en este canal (ID: {canal_id}). Por favor, usa los canales oficiales.",
             ephemeral=True
         )
         return False
