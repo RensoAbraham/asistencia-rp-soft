@@ -19,3 +19,7 @@ venv/
 # OS
 .DS_Store
 Thumbs.db
+
+# Secrets
+credentials.json
+bot_asistencia_main/credentials.json

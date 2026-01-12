@@ -182,6 +182,21 @@ async def setup_hook():
     logging.info('Sincronizando comandos (tree.sync)...')
     await bot.tree.sync()
     logging.info('Comandos sincronizados.')
+    
+    # Iniciar sincronización con Google Sheets (si está configurada)
+    from google_sheets import sync_practicantes_to_db
+    
+    # Tarea de sincronización
+    @tasks.loop(hours=1)
+    async def sync_google_sheets_task():
+        await bot.wait_until_ready()
+        logging.info("↻ Iniciando sincronización periódica con Google Sheets...")
+        await sync_practicantes_to_db()
+
+    # Iniciar la tarea
+    sync_google_sheets_task.start()
+    logging.info('Tarea de sincronización con Google Sheets iniciada.')
+
     # Nota: Los cogs ahora están organizados en carpetas (asistencia/, faltas/, recuperacion/)
     logging.info('Iniciando tarea de envío de métricas...')
     send_metrics_to_backend.start()

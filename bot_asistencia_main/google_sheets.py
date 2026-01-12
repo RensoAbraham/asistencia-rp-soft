@@ -1,0 +1,124 @@
+import gspread
+from google.oauth2.service_account import Credentials
+import logging
+import os
+
+# Configuración
+SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly']
+CREDENTIALS_FILE = '/app/credentials.json'  # Ruta en el contenedor Docker
+# Si estás probando localmente fuera de Docker, podrías necesitar ajustar la ruta
+# CREDENTIALS_FILE = 'credentials.json' 
+SHEET_NAME_ENV = 'GOOGLE_SHEET_NAME' # Nombre de la hoja en .env
+
+def get_practicantes_from_sheet():
+    """
+    Lee la lista de practicantes desde Google Sheets.
+    Retorna una lista de diccionarios con 'id_discord', 'nombre', 'apellido'.
+    """
+    sheet_name = os.getenv(SHEET_NAME_ENV, 'Practicantes_RP_Soft')
+    
+    # Verificar si existe el archivo de credenciales
+    if not os.path.exists(CREDENTIALS_FILE) and not os.path.exists('credentials.json'):
+         # Fallback para pruebas locales si no está en /app
+        if os.path.exists('credentials.json'):
+            creds_path = 'credentials.json'
+        else:
+            logging.warning(f"⚠️ No se encontró {CREDENTIALS_FILE}. La sincronización con Google Sheets no funcionará.")
+            return []
+    else:
+        creds_path = CREDENTIALS_FILE if os.path.exists(CREDENTIALS_FILE) else 'credentials.json'
+
+    try:
+        creds = Credentials.from_service_account_file(creds_path, scopes=SCOPES)
+        client = gspread.authorize(creds)
+        
+        # Abrir la hoja de cálculo
+        try:
+            sheet = client.open(sheet_name).sheet1
+        except gspread.SpreadsheetNotFound:
+            logging.error(f"❌ No se encontró la hoja de cálculo: '{sheet_name}'. Verifica el nombre.")
+            return []
+        
+        # Obtener todos los registros (asumiendo fila 1 = encabezados)
+        # Se espera: Timestamp, ID Discord, Nombre Completo
+        # Indices (0-based): 0=Timestamp, 1=ID Discord, 2=Nombre Completo
+        rows = sheet.get_all_values()
+        
+        if len(rows) < 2:
+            return [] # Hoja vacía
+            
+        practicantes = []
+        
+        # Detectar índices de columnas por nombre (más robusto)
+        headers = [h.lower() for h in rows[0]]
+        try:
+            # Buscar columnas clave (ajusta 'id' y 'nombre' según tus preguntas del Form)
+            idx_id = next(i for i, h in enumerate(headers) if 'id' in h and 'discord' in h)
+            idx_nombre = next(i for i, h in enumerate(headers) if 'nombre' in h)
+        except StopIteration:
+            logging.error("❌ No se encontraron las columnas 'ID Discord' o 'Nombre' en el Excel.")
+            return []
+
+        for row in rows[1:]: # Saltar encabezado
+            if len(row) <= max(idx_id, idx_nombre): continue
+            
+            raw_id = row[idx_id].strip()
+            nombre_completo = row[idx_nombre].strip()
+            
+            if not raw_id or not nombre_completo: continue
+            
+            try:
+                # Limpiar ID (a veces Excel lo pone como científico 1.23E+17)
+                discord_id = int(float(raw_id))
+                
+                # Dividir nombre
+                partes = nombre_completo.split(' ', 1)
+                nombre = partes[0]
+                apellido = partes[1] if len(partes) > 1 else ''
+                
+                practicantes.append({
+                    'id_discord': discord_id,
+                    'nombre': nombre,
+                    'apellido': apellido
+                })
+            except ValueError:
+                logging.warning(f"⚠️ ID inválido ignorado: {raw_id} ({nombre_completo})")
+                continue
+                
+        logging.info(f"✅ Leídos {len(practicantes)} practicantes de Google Sheets.")
+        return practicantes
+
+    except Exception as e:
+        logging.error(f"❌ Error crítico en sync Google Sheets: {e}")
+        return []
+
+async def sync_practicantes_to_db():
+    """
+    Función principal para sincronizar datos de Sheets hacia la BD.
+    """
+    import database as db
+    
+    practicantes = get_practicantes_from_sheet()
+    
+    if not practicantes:
+        return
+    
+    nuevos = 0
+    for p in practicantes:
+        # Insertar ignorando duplicados (ID Discord es UNIQUE)
+        # Opcional: Podríamos usar ON DUPLICATE KEY UPDATE si quisiéramos actualizar nombres
+        query = """
+        INSERT IGNORE INTO practicante (id_discord, nombre, apellido, estado)
+        VALUES (%s, %s, %s, 'activo')
+        """
+        id_gen = await db.execute_query(query, (p['id_discord'], p['nombre'], p['apellido']))
+        
+        # execute_query suele retornar el lastrowid, pero con INSERT IGNORE si no inserta puede variar.
+        # Una forma mejor de contar es verificar si se insertó, pero por simplicidad:
+        if id_gen: 
+            nuevos += 1
+            
+    if nuevos > 0:
+        logging.info(f"📥 Sincronización: Se registraron {nuevos} nuevos practicantes desde Sheets.")
+    else:
+        logging.info("↻ Sincronización: No hubo nuevos practicantes para agregar.")
