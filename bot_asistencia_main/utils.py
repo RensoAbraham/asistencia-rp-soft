@@ -1,6 +1,15 @@
 import database as db
 import discord
 from discord import TextStyle, ui
+import datetime
+from zoneinfo import ZoneInfo
+
+# Zona horaria de Perú
+LIMA_TZ = ZoneInfo("America/Lima")
+
+def es_domingo() -> bool:
+    """Verifica si hoy es domingo en hora de Perú"""
+    return datetime.datetime.now(LIMA_TZ).weekday() == 6
 
 
 async def obtener_practicante(interaction, discord_id):

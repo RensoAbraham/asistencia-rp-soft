@@ -6,9 +6,11 @@ from dotenv import load_dotenv
 # from database import init_db_pool, close_db_pool
 import asyncio
 import logging
-import datetime as _datetime
 import datetime
 from zoneinfo import ZoneInfo
+
+# Zona horaria de Perú
+LIMA_TZ = ZoneInfo("America/Lima")
 
 # Cargar variables de entorno
 load_dotenv()
@@ -22,7 +24,8 @@ logging.basicConfig(
     datefmt='%Y-%m-%d %H:%M:%S' 
 )
 
-# logging.Formatter.converter = lambda *args: datetime.datetime.now(ZoneInfo("America/Lima")).timetuple()
+# Configurar logging para usar hora de Lima
+logging.Formatter.converter = lambda *args: datetime.datetime.now(LIMA_TZ).timetuple()
 
 # Clase para métricas del bot
 class BotMetrics:

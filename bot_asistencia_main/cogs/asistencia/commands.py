@@ -20,6 +20,16 @@ class Asistencia(commands.GroupCog, name="asistencia"):
 
     @app_commands.command(name='entrada', description="Registrar tu hora de entrada")
     async def entrada(self, interaction: discord.Interaction):
+        from utils import es_domingo, LIMA_TZ
+        
+        # Bloquear domingos
+        if es_domingo():
+            await interaction.response.send_message(
+                "⛔ **Día Domingo, No laboral**\nLos comandos de asistencia están deshabilitados los domingos.",
+                ephemeral=True
+            )
+            return
+        
         if not await canal_permitido(interaction):
             logging.warning(f'Canal no permitido para el usuario {interaction.user.display_name}.')
             return
@@ -34,14 +44,13 @@ class Asistencia(commands.GroupCog, name="asistencia"):
             logging.warning(f'Practicante no encontrado para el usuario {interaction.user.display_name}.')
             return
 
-        fecha_actual = datetime.now().date()
-        hora_actual = datetime.now().time()
+        fecha_actual = datetime.now(LIMA_TZ).date()
+        hora_actual = datetime.now(LIMA_TZ).time()
         hora_inicio_permitida = time(7, 0)
         hora_fin_permitida = time(14, 0)
-        dia_actual = datetime.now().weekday()
 
-        # Verificar si la hora actual está dentro del rango permitido y no es domingo
-        if not (hora_inicio_permitida <= hora_actual <= hora_fin_permitida) or dia_actual in [5, 6]:
+        # Verificar si la hora actual está dentro del rango permitido
+        if not (hora_inicio_permitida <= hora_actual <= hora_fin_permitida):
             await interaction.followup.send(
                 f"{nombre_usuario}, no puedes registrar tu entrada fuera del horario permitido.",
                 ephemeral=True
@@ -85,6 +94,16 @@ class Asistencia(commands.GroupCog, name="asistencia"):
 
     @app_commands.command(name='salida', description="Registrar tu hora de salida")
     async def salida(self, interaction: discord.Interaction):
+        from utils import es_domingo, LIMA_TZ
+        
+        # Bloquear domingos
+        if es_domingo():
+            await interaction.response.send_message(
+                "⛔ **Día Domingo, No laboral**\nLos comandos de asistencia están deshabilitados los domingos.",
+                ephemeral=True
+            )
+            return
+        
         if not await canal_permitido(interaction):
             logging.warning(f'Canal no permitido para el usuario {interaction.user.display_name}.')
             return
@@ -98,7 +117,7 @@ class Asistencia(commands.GroupCog, name="asistencia"):
             logging.warning(f'Practicante no encontrado para el usuario {interaction.user.display_name}.')
             return
 
-        fecha_actual = datetime.now().date()
+        fecha_actual = datetime.now(LIMA_TZ).date()
         query_asistencia = "SELECT id, hora_salida FROM asistencia WHERE practicante_id = %s AND fecha = %s"
         asistencia = await db.fetch_one(query_asistencia, (practicante_id, fecha_actual))
         
@@ -116,7 +135,7 @@ class Asistencia(commands.GroupCog, name="asistencia"):
             )
             return
 
-        hora_actual = datetime.now().time()
+        hora_actual = datetime.now(LIMA_TZ).time()
 
         if hora_actual < time(14, 0):
             # Abrir modal para salida anticipada

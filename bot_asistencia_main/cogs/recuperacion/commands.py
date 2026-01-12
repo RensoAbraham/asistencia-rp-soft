@@ -18,6 +18,16 @@ class Recuperacion(commands.Cog):
 
     @app_commands.command(name='recuperación', description="Registrar una sesión de recuperación")
     async def recuperacion(self, interaction: discord.Interaction):
+        from utils import es_domingo, LIMA_TZ
+        
+        # Bloquear domingos
+        if es_domingo():
+            await interaction.response.send_message(
+                "⛔ **Día Domingo, No laboral**\nLos comandos de asistencia están deshabilitados los domingos.",
+                ephemeral=True
+            )
+            return
+
         if not await canal_permitido(interaction):
             logging.warning(f'Canal no permitido para el usuario {interaction.user.display_name}.')
             return
@@ -44,8 +54,8 @@ class Recuperacion(commands.Cog):
             logging.warning(f'Practicante no encontrado para el usuario {interaction.user.display_name}.')
             return
 
-        fecha_actual = datetime.now().date()
-        hora_actual = datetime.now().time()
+        fecha_actual = datetime.now(LIMA_TZ).date()
+        hora_actual = datetime.now(LIMA_TZ).time()
         hora_inicio_permitida = time(14, 30)  # 2:30 PM
         hora_fin_permitida = time(20, 0)      # 8:00 PM
 
@@ -91,6 +101,44 @@ class Recuperacion(commands.Cog):
         embed.add_field(name="📅 Fecha", value=f"{fecha_actual.strftime('%d/%m/%Y')}", inline=False)
         embed.set_footer(text="Si tienes dudas, contacta con el administrador.")
 
+        await interaction.followup.send(embed=embed, ephemeral=True)
+
+    @app_commands.command(name='recuperacion_salida', description="Registrar salida de recuperación")
+    async def recuperacion_salida(self, interaction: discord.Interaction):
+        from utils import es_domingo, LIMA_TZ
+        
+        if es_domingo():
+            await interaction.response.send_message("⛔ **Día Domingo, No laboral**", ephemeral=True)
+            return
+
+        await interaction.response.defer(ephemeral=True)
+        practicante_id = await obtener_practicante(interaction, interaction.user.id)
+        if not practicante_id: return
+
+        fecha_actual = datetime.now(LIMA_TZ).date()
+        hora_actual = datetime.now(LIMA_TZ).time()
+        
+        # Buscar recuperación activa (sin salida)
+        query = "SELECT id, hora_entrada FROM asistencia_recuperacion WHERE practicante_id=%s AND fecha_recuperacion=%s AND hora_salida IS NULL"
+        rec = await db.fetch_one(query, (practicante_id, fecha_actual))
+        
+        if not rec:
+            await interaction.followup.send("⚠️ No tienes una sesión de recuperación activa hoy.", ephemeral=True)
+            return
+
+        # Actualizar salida
+        await db.execute_query("UPDATE asistencia_recuperacion SET hora_salida=%s WHERE id=%s", (hora_actual, rec['id']))
+        
+        # Calcular duración
+        inicio = datetime.combine(fecha_actual, (datetime.min + rec['hora_entrada']).time())
+        fin = datetime.combine(fecha_actual, hora_actual)
+        duracion = fin - inicio
+        horas = duracion.seconds // 3600
+        minutos = (duracion.seconds % 3600) // 60
+        
+        embed = Embed(title="✅ Salida de Recuperación", color=Color.blue())
+        embed.add_field(name="Duración", value=f"{horas}h {minutos}m")
+        embed.add_field(name="Hora Salida", value=hora_actual.strftime('%H:%M'))
         await interaction.followup.send(embed=embed, ephemeral=True)
 
     @app_commands.command(name='recuperación_historial', description="Consultar tu historial de recuperaciones")
