@@ -76,6 +76,7 @@ def get_practicantes_from_sheet():
             
             if not raw_id or not nombre_completo: continue
             
+            try:
                 # Limpiar ID (a veces Excel lo pone como científico 1.23E+17)
                 # Usamos una forma más segura para no perder precisión con números grandes
                 raw_id_clean = "".join(filter(str.isdigit, raw_id))
