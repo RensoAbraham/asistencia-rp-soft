@@ -184,7 +184,7 @@ async def setup_hook():
     logging.info('Comandos sincronizados.')
     
     # Iniciar sincronización con Google Sheets (si está configurada)
-    from google_sheets import sync_practicantes_to_db
+    from google_sheets import sync_practicantes_to_db, export_report_to_sheet
     
     # Tarea de sincronización
     @tasks.loop(hours=1)
@@ -192,6 +192,7 @@ async def setup_hook():
         await bot.wait_until_ready()
         logging.info("↻ Iniciando sincronización periódica con Google Sheets...")
         await sync_practicantes_to_db()
+        await export_report_to_sheet()
 
     # Iniciar la tarea
     sync_google_sheets_task.start()

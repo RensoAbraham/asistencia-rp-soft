@@ -125,3 +125,62 @@ async def sync_practicantes_to_db():
         logging.info(f"📥 Sincronización: Se registraron {nuevos} nuevos practicantes desde Sheets.")
     else:
         logging.info("↻ Sincronización: No hubo nuevos practicantes para agregar.")
+
+async def export_report_to_sheet():
+    """
+    Lee la vista reporte_asistencia de la BD y la exporta a una nueva pestaña en Google Sheets.
+    """
+    import database as db
+    
+    # 1. Obtener datos de la base de datos
+    query = "SELECT * FROM reporte_asistencia ORDER BY Fecha DESC, Nombre ASC"
+    data = await db.fetch_all(query)
+    
+    if not data:
+        logging.info("↻ Reporte Sheets: No hay datos para exportar.")
+        return
+
+    sheet_name = os.getenv(SHEET_NAME_ENV, 'Practicantes_RP_Soft')
+    
+    # Verificar si existe el archivo de credenciales
+    if not os.path.exists(CREDENTIALS_FILE) and not os.path.exists('credentials.json'):
+        logging.warning("⚠️ No se encontraron credenciales para Google Sheets.")
+        return
+    
+    creds_path = CREDENTIALS_FILE if os.path.exists(CREDENTIALS_FILE) else 'credentials.json'
+
+    try:
+        creds = Credentials.from_service_account_file(creds_path, scopes=SCOPES)
+        client = gspread.authorize(creds)
+        spreadsheet = client.open(sheet_name)
+        
+        # 2. Obtener o crear la hoja de reporte
+        try:
+            worksheet = spreadsheet.worksheet("Reporte Asistencia")
+        except gspread.WorksheetNotFound:
+            # Crear si no existe, con 1000 filas de margen
+            worksheet = spreadsheet.add_worksheet(title="Reporte Asistencia", rows="1000", cols="10")
+        
+        # 3. Formatear datos para gspread
+        headers = ["Fecha", "Nombre", "Apellido", "Entrada", "Salida", "Estado", "Tardanza (min)", "Horas Totales"]
+        rows_to_write = [headers]
+        
+        for row in data:
+            rows_to_write.append([
+                str(row['Fecha']),
+                row['Nombre'],
+                row['Apellido'],
+                str(row['Entrada']) if row['Entrada'] else '-',
+                str(row['Salida']) if row['Salida'] else '-',
+                row['Estado'],
+                str(row['Tardanza_Minutos']),
+                str(row['Horas_Trabajadas'])
+            ])
+            
+        # 4. Limpiar y actualizar
+        worksheet.clear()
+        worksheet.update('A1', rows_to_write)
+        logging.info(f"📊 Reporte en Google Sheets actualizado ({len(data)} registros).")
+        
+    except Exception as e:
+        logging.error(f"❌ Error al exportar reporte a Google Sheets: {e}")
