@@ -58,6 +58,11 @@ def get_practicantes_from_sheet():
             # Buscar columnas clave (ajusta 'id' y 'nombre' según tus preguntas del Form)
             idx_id = next(i for i, h in enumerate(headers) if 'id' in h and 'discord' in h)
             idx_nombre = next(i for i, h in enumerate(headers) if 'nombre' in h)
+            # Correo es opcional en el Excel pero obligatorio en BD
+            try:
+                idx_correo = next(i for i, h in enumerate(headers) if 'correo' in h or 'mail' in h)
+            except StopIteration:
+                idx_correo = None
         except StopIteration:
             logging.error("❌ No se encontraron las columnas 'ID Discord' o 'Nombre' en el Excel.")
             return []
@@ -67,6 +72,7 @@ def get_practicantes_from_sheet():
             
             raw_id = row[idx_id].strip()
             nombre_completo = row[idx_nombre].strip()
+            correo = row[idx_correo].strip() if idx_correo is not None and len(row) > idx_correo else f"registro_{raw_id}@example.com"
             
             if not raw_id or not nombre_completo: continue
             
@@ -82,7 +88,8 @@ def get_practicantes_from_sheet():
                 practicantes.append({
                     'id_discord': discord_id,
                     'nombre': nombre,
-                    'apellido': apellido
+                    'apellido': apellido,
+                    'correo': correo
                 })
             except ValueError:
                 logging.warning(f"⚠️ ID inválido ignorado: {raw_id} ({nombre_completo})")
@@ -111,10 +118,10 @@ async def sync_practicantes_to_db():
         # Insertar ignorando duplicados (ID Discord es UNIQUE)
         # Opcional: Podríamos usar ON DUPLICATE KEY UPDATE si quisiéramos actualizar nombres
         query = """
-        INSERT IGNORE INTO practicante (id_discord, nombre, apellido, estado)
-        VALUES (%s, %s, %s, 'activo')
+        INSERT IGNORE INTO practicante (id_discord, nombre, apellido, correo, estado)
+        VALUES (%s, %s, %s, %s, 'activo')
         """
-        id_gen = await db.execute_query(query, (p['id_discord'], p['nombre'], p['apellido']))
+        id_gen = await db.execute_query(query, (p['id_discord'], p['nombre'], p['apellido'], p['correo']))
         
         # execute_query suele retornar el lastrowid, pero con INSERT IGNORE si no inserta puede variar.
         # Una forma mejor de contar es verificar si se insertó, pero por simplicidad:
