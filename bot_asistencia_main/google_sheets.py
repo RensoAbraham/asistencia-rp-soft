@@ -4,7 +4,10 @@ import logging
 import os
 
 # Configuración
-SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly']
+SCOPES = [
+    'https://www.googleapis.com/auth/spreadsheets',
+    'https://www.googleapis.com/auth/drive'
+]
 CREDENTIALS_FILE = '/app/credentials.json'  # Ruta en el contenedor Docker
 # Si estás probando localmente fuera de Docker, podrías necesitar ajustar la ruta
 # CREDENTIALS_FILE = 'credentials.json' 
