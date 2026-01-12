@@ -43,16 +43,12 @@ async def canal_permitido(interaction: discord.Interaction) -> bool:
     servidor_id = interaction.guild.id
     bot = interaction.client
     
-    # Excepción temporal para pruebas (Canal solicitado por usuario)
-    if interaction.channel.id == 1457802290093228093:
-        return True
-
     canales_permitidos = bot.canales_permitidos.get(servidor_id, [])
 
     # Verificar si el canal es permitido
     if interaction.channel.id not in canales_permitidos:
         await interaction.response.send_message(
-            "Este comando no está habilitado en este canal.",
+            f"Este comando no está habilitado en este canal (ID: {interaction.channel.id}). Por favor, usa los canales oficiales.",
             ephemeral=True
         )
         return False
