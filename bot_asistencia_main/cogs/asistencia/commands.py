@@ -8,7 +8,7 @@ from datetime import datetime, time, timedelta
 import database as db
 import logging
 
-from .modals import SalidaAnticipadaModal
+# from .modals import SalidaAnticipadaModal
 
 
 class Asistencia(commands.GroupCog, name="asistencia"):
@@ -138,9 +138,19 @@ class Asistencia(commands.GroupCog, name="asistencia"):
         hora_actual = datetime.now(LIMA_TZ).time()
 
         if hora_actual < time(14, 0):
-            # Abrir modal para salida anticipada
-            modal = SalidaAnticipadaModal(hora_actual, asistencia, nombre_usuario)
-            await interaction.response.send_modal(modal)
+            await interaction.response.defer(ephemeral=True)
+            # Salida anticipada: registrar y advertir
+            query_update_salida = "UPDATE asistencia SET hora_salida = %s WHERE id = %s"
+            await db.execute_query(query_update_salida, (hora_actual, asistencia['id']))
+            
+            logging.warning(f'Salida anticipada registrada para el usuario {interaction.user.display_name}.')
+            
+            mensaje_alerta = (
+                f"⚠️ **SALIDA ANTICIPADA DETECTADA** ⚠️\n\n"
+                f"{nombre_usuario}, tu salida ha sido registrada a las **{hora_actual.strftime('%H:%M')}**.\n\n"
+                f"🔴 **IMPORTANTE:** Al salir antes de las 14:00, debes informar al **Sr. Wilber** o abrir un **Ticket** en el canal correspondiente para justificar tu salida temprana."
+            )
+            await interaction.followup.send(mensaje_alerta, ephemeral=True)
         else:
             await interaction.response.defer(ephemeral=True)
             # Salida normal, solo actualizar hora
@@ -148,7 +158,7 @@ class Asistencia(commands.GroupCog, name="asistencia"):
             await db.execute_query(query_update_salida, (hora_actual, asistencia['id']))
             logging.info(f'Salida registrada para el usuario {interaction.user.display_name}.')
             await interaction.followup.send(
-                f"{nombre_usuario}, se ha registrado tu salida a las {hora_actual.strftime('%H:%M')}.",
+                f"✅ {nombre_usuario}, se ha registrado tu salida a las **{hora_actual.strftime('%H:%M')}**.",
                 ephemeral=True
             )
 

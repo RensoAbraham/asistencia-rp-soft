@@ -32,7 +32,7 @@ class Faltas(commands.GroupCog, name="faltas"):
         # Consultar las faltas injustificadas del practicante
         query_faltas = """
             SELECT date_format(fecha, '%%m-%%d') as fecha, motivo
-            FROM Asistencia
+            FROM asistencia
             WHERE practicante_id = %s AND estado_id = %s
             ORDER BY fecha DESC
             LIMIT 5

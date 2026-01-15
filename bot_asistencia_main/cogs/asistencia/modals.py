@@ -30,7 +30,7 @@ class SalidaAnticipadaModal(ui.Modal, title="Salida Anticipada"):
         # Actualizar la DB con la salida anticipada
         estado_id = await obtener_estado_asistencia('Salida Anticipada')
         query_update_salida = """
-            UPDATE Asistencia 
+            UPDATE asistencia 
             SET hora_salida = %s, estado_id = %s, motivo = %s 
             WHERE id = %s
         """
