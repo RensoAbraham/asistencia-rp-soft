@@ -1,22 +1,21 @@
-# 🤖 Bot de Asistencia Discord
+# 🤖# 🤖 Bot de Asistencia RP Soft
 
-Sistema completo para la gestión de asistencia, faltas y recuperaciones de usuarios en Discord.
+Bot de Discord corporativo para la gestión automatizada de asistencias de practicantes, tardanzas y reportes sincronizados con Google Sheets.
 
-## 📋 Características
+## 📚 Documentación Oficial
 
-- ✅ **Registro de Entrada y Salida**: Control horario con validación de horarios
-- ⏰ **Detección de Atrasos**: Registro automático de tardanzas
-- 📝 **Gestión de Faltas**: Consulta de faltas justificadas e injustificadas
-- 🔄 **Sistema de Recuperación**: Registro de sesiones de recuperación (2:30 PM - 8:00 PM)
-- 📊 **Historial Completo**: Consulta de historial de asistencia y recuperaciones
-- 🔐 **Control de Permisos**: Restricción por canales y roles
-- 📈 **Métricas en Tiempo Real**: Envío de métricas al backend
+Toda la documentación técnica y de usuario se encuentra organizada en la carpeta [`docs/`](./docs):
 
-## 🏗️ Arquitectura del Proyecto
+*   **[Visión General](./docs/overview.md):** Entiende la arquitectura, tecnologías y el flujo de datos del sistema.
+*   **[Guía de Despliegue en VPS](./docs/deploy_vps.md):** Instrucciones paso a paso para instalar en producción (Hetzner/Ubuntu) usando Docker.
+*   **[Guía de Configuración y Uso](./docs/guia_configuracion.md):** Manual para configurar el Excel, entender las tardanzas (08:20 AM) y leer los reportes.
+*   **[Guía de Testing](./docs/testing.md):** Cómo ejecutar las pruebas de calidad.
 
-### Estructura de Carpetas
+## 🚀 Inicio Rápido (Local)
 
-```
+1.  **Clonar:** `git clone https://github.com/RensoAbraham/asistencia-rp-soft.git`
+2.  **Configurar:** Copia `.env.testing` a `.env` y pon tus claves reales.
+3.  **Ejecutar:** `docker compose up --build`
 Bot-Asistencia-Discord/
 ├── bot/
 │   ├── config/                    # Configuración centralizada
