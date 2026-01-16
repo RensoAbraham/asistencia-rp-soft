@@ -58,11 +58,19 @@ def get_practicantes_from_sheet():
             # Buscar columnas clave (ajusta 'id' y 'nombre' según tus preguntas del Form)
             idx_id = next(i for i, h in enumerate(headers) if 'id' in h and 'discord' in h)
             idx_nombre = next(i for i, h in enumerate(headers) if 'nombre' in h)
-            # Correo es opcional en el Excel pero obligatorio en BD
+            
+            # Buscar columna opcional de Correo
             try:
                 idx_correo = next(i for i, h in enumerate(headers) if 'correo' in h or 'mail' in h)
             except StopIteration:
                 idx_correo = None
+                
+            # Buscar columna opcional de Horas Base
+            try:
+                idx_horas_base = next(i for i, h in enumerate(headers) if 'base' in h or 'acumuladas' in h)
+            except StopIteration:
+                idx_horas_base = None
+                
         except StopIteration:
             logging.error("❌ No se encontraron las columnas 'ID Discord' o 'Nombre' en el Excel.")
             return []
@@ -73,7 +81,12 @@ def get_practicantes_from_sheet():
             raw_id = row[idx_id].strip()
             nombre_completo = row[idx_nombre].strip()
             correo = row[idx_correo].strip() if idx_correo is not None and len(row) > idx_correo else f"registro_{raw_id}@example.com"
+            horas_base = row[idx_horas_base].strip() if idx_horas_base is not None and len(row) > idx_horas_base else "00:00:00"
             
+            # Validar formato de horas base (HH:MM:SS), si falla poner 00:00:00
+            if not horas_base or ':' not in horas_base:
+                horas_base = "00:00:00"
+
             if not raw_id or not nombre_completo: continue
             
             try:
@@ -95,7 +108,8 @@ def get_practicantes_from_sheet():
                     'id_discord': discord_id,
                     'nombre': nombre,
                     'apellido': apellido,
-                    'correo': correo
+                    'correo': correo,
+                    'horas_base': horas_base
                 })
             except ValueError:
                 logging.warning(f"⚠️ ID inválido ignorado: {raw_id} ({nombre_completo})")
@@ -111,6 +125,7 @@ def get_practicantes_from_sheet():
 async def sync_practicantes_to_db():
     """
     Función principal para sincronizar datos de Sheets hacia la BD.
+    Ahora también actualiza las HORAS BASE si cambiaron en el Excel.
     """
     import database as db
     
@@ -120,24 +135,29 @@ async def sync_practicantes_to_db():
         return
     
     nuevos = 0
+    actualizados = 0
+    
     for p in practicantes:
-        # Insertar ignorando duplicados (ID Discord es UNIQUE)
-        # Opcional: Podríamos usar ON DUPLICATE KEY UPDATE si quisiéramos actualizar nombres
-        query = """
-        INSERT IGNORE INTO practicante (id_discord, nombre, apellido, correo, estado)
-        VALUES (%s, %s, %s, %s, 'activo')
+        # 1. Intentar Insertar (Nuevos)
+        query_insert = """
+        INSERT INTO practicante (id_discord, nombre, apellido, correo, horas_base, estado)
+        VALUES (%s, %s, %s, %s, %s, 'activo')
+        ON DUPLICATE KEY UPDATE 
+            nombre = VALUES(nombre),
+            apellido = VALUES(apellido),
+            horas_base = VALUES(horas_base)
         """
-        id_gen = await db.execute_query(query, (p['id_discord'], p['nombre'], p['apellido'], p['correo']))
+        # ON DUPLICATE KEY UPDATE permite actualizar horas_base y nombre si ya existe el ID
+        # Esto hace la sincronización bidireccional efectiva (Excel -> BD)
         
-        # execute_query suele retornar el lastrowid, pero con INSERT IGNORE si no inserta puede variar.
-        # Una forma mejor de contar es verificar si se insertó, pero por simplicidad:
-        if id_gen: 
-            nuevos += 1
+        id_gen = await db.execute_query(query_insert, (
+            p['id_discord'], p['nombre'], p['apellido'], p['correo'], p['horas_base']
+        ))
+        
+        # Como usamos ON DUPLICATE KEY, execute_query retorna ID si es nuevo o update
+        # Difícil distinguir exacto sin cursor rowcount, pero no es crítico.
             
-    if nuevos > 0:
-        logging.info(f"📥 Sincronización: Se registraron {nuevos} nuevos practicantes desde Sheets.")
-    else:
-        logging.info("↻ Sincronización: No hubo nuevos practicantes para agregar.")
+    logging.info(f"📥 Sincronización completa (Nuevos/Actualizados) desde Sheets.")
 
 async def export_report_to_sheet():
     """
@@ -167,33 +187,79 @@ async def export_report_to_sheet():
         client = gspread.authorize(creds)
         spreadsheet = client.open(sheet_name)
         
-        # 2. Obtener o crear la hoja de reporte
+        # 2. Obtener o crear la hoja de reporte detallado
         try:
-            worksheet = spreadsheet.worksheet("Reporte Asistencia")
+            worksheet_det = spreadsheet.worksheet("Reporte Detallado")
         except gspread.WorksheetNotFound:
-            # Crear si no existe, con 1000 filas de margen
-            worksheet = spreadsheet.add_worksheet(title="Reporte Asistencia", rows="1000", cols="10")
+            worksheet_det = spreadsheet.add_worksheet(title="Reporte Detallado", rows="1000", cols="10")
         
-        # 3. Formatear datos para gspread
-        headers = ["Fecha", "Nombre", "Apellido", "Entrada", "Salida", "Estado", "Tardanza (min)", "Horas Totales"]
-        rows_to_write = [headers]
+        # 3. Formatear datos para gspread (Detallado)
+        headers_det = ["Fecha", "Nombre", "Apellido", "Entrada", "Salida", "Horas Sesión", "Horas Acumuladas", "Estado"]
+        rows_det = [headers_det]
         
         for row in data:
-            rows_to_write.append([
+            rows_det.append([
                 str(row['Fecha']),
                 row['Nombre'],
                 row['Apellido'],
                 str(row['Entrada']) if row['Entrada'] else '-',
                 str(row['Salida']) if row['Salida'] else '-',
-                row['Estado'],
-                str(row['Tardanza_Minutos']),
-                str(row['Horas_Trabajadas'])
+                str(row['Horas_Sesion']) if row['Horas_Sesion'] else '00:00:00',
+                str(row['Horas_Acumuladas_Hasta_Hoy']) if row['Horas_Acumuladas_Hasta_Hoy'] else '00:00:00',
+                row['Estado']
             ])
             
-        # 4. Limpiar y actualizar
-        worksheet.clear()
-        worksheet.update('A1', rows_to_write)
-        logging.info(f"📊 Reporte en Google Sheets actualizado ({len(data)} registros).")
+        # 4. Limpiar y actualizar Detallado
+        worksheet_det.clear()
+        worksheet_det.update('A1', rows_det)
+
+        # ---------------------------------------------------------
+        # 5. Generar Hoja de "Resumen General" (Acumulado por alumno)
+        # ---------------------------------------------------------
+        try:
+            worksheet_res = spreadsheet.worksheet("Resumen General")
+        except gspread.WorksheetNotFound:
+            worksheet_res = spreadsheet.add_worksheet(title="Resumen General", rows="100", cols="6")
+
+        # Consulta agrupa por practicante para ver totales reales
+        query_resumen = """
+        SELECT 
+            p.nombre, 
+            p.apellido, 
+            IFNULL(p.horas_base, '00:00:00') as Horas_Base,
+            -- Suma de horas trabajadas (diferencia salida - entrada)
+            SEC_TO_TIME(SUM(IFNULL(TIME_TO_SEC(TIMEDIFF(a.hora_salida, a.hora_entrada)), 0))) as Horas_Trabajadas_Bot,
+            -- Total (Base + Bot)
+            ADDTIME(
+                IFNULL(p.horas_base, '00:00:00'),
+                SEC_TO_TIME(SUM(IFNULL(TIME_TO_SEC(TIMEDIFF(a.hora_salida, a.hora_entrada)), 0)))
+            ) as Total_Acumulado,
+            -- Meta (Ejemplo 480h)
+            '480:00:00' as Meta
+        FROM practicante p
+        LEFT JOIN asistencia a ON p.id = a.practicante_id AND a.hora_salida IS NOT NULL
+        GROUP BY p.id, p.nombre, p.apellido, p.horas_base
+        ORDER BY Total_Acumulado DESC
+        """
+        data_resumen = await db.fetch_all(query_resumen)
+        
+        headers_res = ["Nombre", "Apellido", "Horas Base (Anteriores)", "Horas Bot (Nuevas)", "TOTAL ACUMULADO", "Meta (480h)"]
+        rows_res = [headers_res]
+        
+        for row in data_resumen:
+            rows_res.append([
+                row['nombre'],
+                row['apellido'],
+                str(row['Horas_Base']),
+                str(row['Horas_Trabajadas_Bot']),
+                str(row['Total_Acumulado']),
+                row['Meta']
+            ])
+
+        worksheet_res.clear()
+        worksheet_res.update('A1', rows_res)
+        
+        logging.info(f"📊 Reportes actualizados: 'Reporte Detallado' ({len(data)} filas) y 'Resumen General' ({len(data_resumen)} filas).")
         
     except Exception as e:
         logging.error(f"❌ Error al exportar reporte a Google Sheets: {e}")
