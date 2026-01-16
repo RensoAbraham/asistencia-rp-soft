@@ -89,7 +89,7 @@ async def ensure_db_setup():
         id_discord BIGINT NOT NULL UNIQUE,
         nombre VARCHAR(100) NOT NULL,
         apellido VARCHAR(100) NOT NULL,
-        correo VARCHAR(255) NOT NULL,
+        correo VARCHAR(255) DEFAULT '',
         semestre INT DEFAULT 1,
         estado VARCHAR(20) DEFAULT 'activo',
         horas_base TIME DEFAULT '00:00:00',

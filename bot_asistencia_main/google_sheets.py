@@ -59,12 +59,6 @@ def get_practicantes_from_sheet():
             idx_id = next(i for i, h in enumerate(headers) if 'id' in h and 'discord' in h)
             idx_nombre = next(i for i, h in enumerate(headers) if 'nombre' in h)
             
-            # Buscar columna opcional de Correo
-            try:
-                idx_correo = next(i for i, h in enumerate(headers) if 'correo' in h or 'mail' in h)
-            except StopIteration:
-                idx_correo = None
-                
             # Buscar columna opcional de Horas Base
             try:
                 idx_horas_base = next(i for i, h in enumerate(headers) if 'base' in h or 'acumuladas' in h)
@@ -80,7 +74,7 @@ def get_practicantes_from_sheet():
             
             raw_id = row[idx_id].strip()
             nombre_completo = row[idx_nombre].strip()
-            correo = row[idx_correo].strip() if idx_correo is not None and len(row) > idx_correo else f"registro_{raw_id}@example.com"
+            # Correo eliminado por solicitud del usuario
             horas_base = row[idx_horas_base].strip() if idx_horas_base is not None and len(row) > idx_horas_base else "00:00:00"
             
             # Validar formato de horas base (HH:MM:SS), si falla poner 00:00:00
@@ -108,14 +102,13 @@ def get_practicantes_from_sheet():
                     'id_discord': discord_id,
                     'nombre': nombre,
                     'apellido': apellido,
-                    'correo': correo,
                     'horas_base': horas_base
                 })
             except ValueError:
                 logging.warning(f"⚠️ ID inválido ignorado: {raw_id} ({nombre_completo})")
                 continue
                 
-        logging.info(f"✅ Leídos {len(practicantes)} practicantes de Google Sheets.")
+        logging.info(f"✅ Leídos {len(practicantes)} practicantes de Google Sheets (Sin correos).")
         return practicantes
 
     except Exception as e:
@@ -125,7 +118,7 @@ def get_practicantes_from_sheet():
 async def sync_practicantes_to_db():
     """
     Función principal para sincronizar datos de Sheets hacia la BD.
-    Ahora también actualiza las HORAS BASE si cambiaron en el Excel.
+    Sincroniza ID, Nombre, Apellido y Horas Base. Ignora correos.
     """
     import database as db
     
@@ -138,24 +131,20 @@ async def sync_practicantes_to_db():
     actualizados = 0
     
     for p in practicantes:
-        # 1. Intentar Insertar (Nuevos)
+        # 1. Intentar Insertar (Nuevos) o Actualizar
+        # Nota: El campo correo es obligatorio en la BD actual. Insertaremos un dummy vacío.
         query_insert = """
         INSERT INTO practicante (id_discord, nombre, apellido, correo, horas_base, estado)
-        VALUES (%s, %s, %s, %s, %s, 'activo')
+        VALUES (%s, %s, %s, '', %s, 'activo')
         ON DUPLICATE KEY UPDATE 
             nombre = VALUES(nombre),
             apellido = VALUES(apellido),
             horas_base = VALUES(horas_base)
         """
-        # ON DUPLICATE KEY UPDATE permite actualizar horas_base y nombre si ya existe el ID
-        # Esto hace la sincronización bidireccional efectiva (Excel -> BD)
         
-        id_gen = await db.execute_query(query_insert, (
-            p['id_discord'], p['nombre'], p['apellido'], p['correo'], p['horas_base']
+        await db.execute_query(query_insert, (
+            p['id_discord'], p['nombre'], p['apellido'], p['horas_base']
         ))
-        
-        # Como usamos ON DUPLICATE KEY, execute_query retorna ID si es nuevo o update
-        # Difícil distinguir exacto sin cursor rowcount, pero no es crítico.
             
     logging.info(f"📥 Sincronización completa (Nuevos/Actualizados) desde Sheets.")
 
