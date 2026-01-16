@@ -1,53 +1,53 @@
-# 🤖 Guía de Configuración del Bot de Discord
+# 🤖 Bot de Asistencia RP Soft
 
-Este documento te guiará paso a paso para configurar y encender tu bot de Asistencia.
+Bot de Discord corporativo para la gestión automatizada de asistencias, tardanzas y reportes sincronizados con Google Sheets.
 
-## 🚀 Pasos Previos (Discord Developer Portal)
+## 📚 Documentación Oficial
 
-Para obtener el **TOKEN** que necesitas poner en el archivo `.env`, sigue estos pasos:
+Toda la documentación técnica se encuentra en la carpeta [`bot_asistencia_main/docs/`](./bot_asistencia_main/docs):
 
+*   **[Visión General](./bot_asistencia_main/docs/overview.md):** Arquitectura y Flujo.
+*   **[Guía de Despliegue VPS](./bot_asistencia_main/docs/deploy_vps.md):** Instalación en Servidor (Docker).
+*   **[Guía de Configuración](./bot_asistencia_main/docs/guia_configuracion.md):** Excel, Horarios (08:20) y Reportes.
+*   **[Testing](./bot_asistencia_main/docs/testing.md):** Pruebas de Calidad.
+
+---
+
+## 🚀 Guía de Instalación (Desde Cero)
+
+### 1. Obtener Token de Discord
+Si aún no tienes el bot creado:
 1.  Ve al [Discord Developer Portal](https://discord.com/developers/applications).
-2.  Haz clic en **"New Application"** (arriba a la derecha).
-3.  Ponle un nombre (ej: `Bot Asistencia`) y acepta los términos.
-4.  En el menú de la izquierda, ve a **"Bot"**.
-5.  **IMPORTANTE**: Baja hasta la sección **Privileged Gateway Intents** y activa estas 3 opciones (tienen que estar en azul):
-    *   [x] **Presence Intent**
-    *   [x] **Server Members Intent**
-    *   [x] **Message Content Intent**
-6.  Guarda los cambios (**Save Changes**).
-7.  Sube de nuevo, busca la sección **Build-A-Bot** y haz clic en **"Reset Token"**.
-8.  Copia ese código largo y extraño. **Ese es tu DISCORD_TOKEN**.
+2.  Crea una **"New Application"**.
+3.  En **"Bot"**, activa los **Privileged Gateway Intents** (Presence, Server Members, Message Content).
+4.  Haz clic en **"Reset Token"** y copia tu Token.
+
+### 2. Configuración del Proyecto
+1.  **Clonar:**
+    ```bash
+    git clone https://github.com/RensoAbraham/asistencia-rp-soft.git
+    cd asistencia-rp-soft/bot_asistencia_main
+    ```
+2.  **Variables de Entorno:**
+    Copia `.env.testing` a `.env` y editalo con tus claves reales:
+    ```bash
+    cp .env.testing .env
+    nano .env
+    ```
+3.  **Google Sheets:**
+    Coloca tu archivo `credentials.json` en la raíz de la carpeta `bot_asistencia_main`.
+
+### 3. Iniciar (Docker)
+Asegúrate de estar dentro de la carpeta `bot_asistencia_main`:
+```bash
+docker compose up -d --build
+```
 
 ---
 
-## ⚙️ Configuración del Proyecto
-
-1.  Abre el archivo `.env` que está en esta carpeta.
-2.  Busca la línea que dice `DISCORD_TOKEN=TU_TOKEN_AQUI_REEMPLAZAME`.
-3.  Borra lo que está después del `=` y pega el Token que copiaste.
-
-   Ejemplo:
-   ```env
-   DISCORD_TOKEN=MTEyMz... (y muchos más caracteres)
-   ```
-
----
-
-## ▶️ Iniciar el Bot
-
-Una vez guardado el Token:
-
-1.  Abre una terminal en esta carpeta.
-2.  Ejecuta el siguiente comando:
-   ```bash
-   docker-compose up --build
-   ```
-3.  Espera unos minutos. Verás que se descargan cosas y luego textos de colores.
-4.  Cuando veas `Bot conectado como...`, ¡tu bot estará vivo!
-
-## 🧪 Comandos Disponibles
-
-- `/entrada` - Marca entrada (7:00am - 2:00pm)
-- `/salida` - Marca salida
-- `/recuperacion` - Recuperación de horas (2:30pm - 8:00pm)
-- `/historial` - Ver historial de asistencia.
+## 🧪 Comandos Disponibles para Usuarios
+*   `/asistencia entrada`: Marcar ingreso (07:00 - 14:00).
+*   `/asistencia salida`: Marcar salida.
+*   `/asistencia estado`: Ver si ya marcaste hoy.
+*   `/asistencia historial`: Ver tus últimos 7 días.
+*   `/recuperacion`: Solicitar horas (debe ser aprobado por roles).
