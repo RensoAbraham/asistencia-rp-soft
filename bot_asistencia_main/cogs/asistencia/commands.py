@@ -67,7 +67,7 @@ class Asistencia(commands.GroupCog, name="asistencia"):
             )
             return
 
-        hora_limite_tardanza = time(8, 10, 59)
+        hora_limite_tardanza = time(8, 20, 59)
         
         # Determinar estado de asistencia
         if hora_actual > hora_limite_tardanza:
