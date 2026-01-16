@@ -74,15 +74,20 @@ def get_practicantes_from_sheet():
             
             raw_id = row[idx_id].strip()
             # Unificación de nombre completo:
-            # Detecta y concatena columnas de Nombre y Apellido si existen por separado.
-            # Aplica formato Title Case para consistencia visual.
+            # Detecta si hay columna de apellido separada. Si no existe o está vacía,
+            # asume que 'nombre' ya contiene el nombre completo.
             idx_apellido = next((i for i, h in enumerate(headers) if 'apellido' in h), None)
             
             nombre_part = row[idx_nombre].strip()
             apellido_part = row[idx_apellido].strip() if idx_apellido is not None and len(row) > idx_apellido else ""
             
-            # Concatenar y normalizar formato
-            full_name_raw = f"{nombre_part} {apellido_part}".strip()
+            # Si apellido está vacío o es igual a nombre, usar solo nombre
+            if not apellido_part or apellido_part == nombre_part:
+                full_name_raw = nombre_part
+            else:
+                full_name_raw = f"{nombre_part} {apellido_part}".strip()
+            
+            # Normalizar formato (Title Case)
             nombre_completo = " ".join([word.capitalize() for word in full_name_raw.split()])
 
             horas_base = row[idx_horas_base].strip() if idx_horas_base is not None and len(row) > idx_horas_base else "00:00:00"
