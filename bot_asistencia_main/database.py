@@ -177,4 +177,36 @@ async def ensure_db_setup():
     JOIN estado_asistencia ea ON a.estado_id = ea.id;
     """)
     
+
+    # 7. Vista simplificada para consultas rápidas (Resumen por Practicante)
+    await execute_query("""
+    CREATE OR REPLACE VIEW resumen_practicantes AS
+    SELECT 
+        p.id,
+        p.id_discord AS ID_Discord,
+        p.nombre_completo AS Nombre_Completo,
+        p.horas_base AS Horas_Base,
+        
+        -- Total Horas Bot (todas las sesiones completadas)
+        IFNULL(
+            (SELECT SEC_TO_TIME(SUM(TIME_TO_SEC(TIMEDIFF(a.hora_salida, a.hora_entrada))))
+             FROM asistencia a
+             WHERE a.practicante_id = p.id AND a.hora_salida IS NOT NULL),
+            '00:00:00'
+        ) AS Horas_Bot,
+        
+        -- Gran Total (Base + Bot)
+        ADDTIME(
+            IFNULL(p.horas_base, '00:00:00'),
+            IFNULL(
+                (SELECT SEC_TO_TIME(SUM(TIME_TO_SEC(TIMEDIFF(a.hora_salida, a.hora_entrada))))
+                 FROM asistencia a
+                 WHERE a.practicante_id = p.id AND a.hora_salida IS NOT NULL),
+                '00:00:00'
+            )
+        ) AS Total_Acumulado
+    FROM practicante p
+    ORDER BY Total_Acumulado DESC;
+    """)
+    
     logging.info("Base de datos inicializada Correctamente (Esquema Simplificado).")
