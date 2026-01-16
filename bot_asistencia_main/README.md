@@ -1,21 +1,54 @@
 # 🤖# 🤖 Bot de Asistencia RP Soft
 
-Bot de Discord corporativo para la gestión automatizada de asistencias de practicantes, tardanzas y reportes sincronizados con Google Sheets.
+Bot de Discord corporativo para la gestión automatizada de asistencias, tardanzas y reportes sincronizados con Google Sheets.
 
 ## 📚 Documentación Oficial
 
-Toda la documentación técnica y de usuario se encuentra organizada en la carpeta [`docs/`](./docs):
+Toda la documentación técnica se encuentra en la carpeta [`docs/`](./docs):
+*   **[Visión General](./docs/overview.md):** Arquitectura y Flujo.
+*   **[Guía de Despliegue VPS](./docs/deploy_vps.md):** Instalación en Servidor (Docker).
+*   **[Guía de Configuración](./docs/guia_configuracion.md):** Excel, Horarios (08:20) y Reportes.
+*   **[Testing](./docs/testing.md):** Pruebas de Calidad.
 
-*   **[Visión General](./docs/overview.md):** Entiende la arquitectura, tecnologías y el flujo de datos del sistema.
-*   **[Guía de Despliegue en VPS](./docs/deploy_vps.md):** Instrucciones paso a paso para instalar en producción (Hetzner/Ubuntu) usando Docker.
-*   **[Guía de Configuración y Uso](./docs/guia_configuracion.md):** Manual para configurar el Excel, entender las tardanzas (08:20 AM) y leer los reportes.
-*   **[Guía de Testing](./docs/testing.md):** Cómo ejecutar las pruebas de calidad.
+---
 
-## 🚀 Inicio Rápido (Local)
+## 🚀 Guía de Instalación (Desde Cero)
 
-1.  **Clonar:** `git clone https://github.com/RensoAbraham/asistencia-rp-soft.git`
-2.  **Configurar:** Copia `.env.testing` a `.env` y pon tus claves reales.
-3.  **Ejecutar:** `docker compose up --build`
+### 1. Obtener Token de Discord
+Si aún no tienes el bot creado:
+1.  Ve al [Discord Developer Portal](https://discord.com/developers/applications).
+2.  Crea una **"New Application"**.
+3.  En **"Bot"**, activa los **Privileged Gateway Intents** (Presence, Server Members, Message Content).
+4.  Haz clic en **"Reset Token"** y copia tu Token.
+
+### 2. Configuración del Proyecto
+1.  **Clonar:**
+    ```bash
+    git clone https://github.com/RensoAbraham/asistencia-rp-soft.git
+    cd asistencia-rp-soft
+    ```
+2.  **Variables de Entorno:**
+    Copia `.env.testing` a `.env` y editalo con tus claves reales:
+    ```bash
+    cp .env.testing .env
+    nano .env
+    ```
+3.  **Google Sheets:**
+    Coloca tu archivo `credentials.json` en la raíz de la carpeta.
+
+### 3. Iniciar (Docker)
+```bash
+docker compose up -d --build
+```
+
+---
+
+## 🧪 Comandos Disponibles para Usuarios
+*   `/asistencia entrada`: Marcar ingreso (07:00 - 14:00).
+*   `/asistencia salida`: Marcar salida.
+*   `/asistencia estado`: Ver si ya marcaste hoy.
+*   `/asistencia historial`: Ver tus últimos 7 días.
+*   `/recuperacion`: Solicitar horas (debe ser aprobado por roles).
 Bot-Asistencia-Discord/
 ├── bot/
 │   ├── config/                    # Configuración centralizada
