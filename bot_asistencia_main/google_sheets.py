@@ -73,18 +73,25 @@ def get_practicantes_from_sheet():
             if len(row) <= max(idx_id, idx_nombre): continue
             
             raw_id = row[idx_id].strip()
-            nombre_completo = row[idx_nombre].strip()
-            # Correo eliminado por solicitud del usuario
+            # Unificación de nombre completo:
+            # Detecta y concatena columnas de Nombre y Apellido si existen por separado.
+            # Aplica formato Title Case para consistencia visual.
+            idx_apellido = next((i for i, h in enumerate(headers) if 'apellido' in h), None)
+            
+            nombre_part = row[idx_nombre].strip()
+            apellido_part = row[idx_apellido].strip() if idx_apellido is not None and len(row) > idx_apellido else ""
+            
+            # Concatenar y normalizar formato
+            full_name_raw = f"{nombre_part} {apellido_part}".strip()
+            nombre_completo = " ".join([word.capitalize() for word in full_name_raw.split()])
+
             horas_base = row[idx_horas_base].strip() if idx_horas_base is not None and len(row) > idx_horas_base else "00:00:00"
             
             # Validar formato de horas base
-            # 1. Si es solo números (ej: "10"), lo convertimos a "10:00:00"
             if horas_base and horas_base.isdigit():
                 horas_base = f"{horas_base}:00:00"
-            # 2. Si no tiene ':' y tampoco es número, o está vacío, poner 0
             elif not horas_base or ':' not in horas_base:
                 horas_base = "00:00:00"
-            # 3. Si tiene formato decimal (ej "10.5"), intentamos arreglarlo o lo dejamos en 0
             elif '.' in horas_base and ':' not in horas_base:
                  try:
                      h = int(float(horas_base))
@@ -95,31 +102,23 @@ def get_practicantes_from_sheet():
             if not raw_id or not nombre_completo: continue
             
             try:
-                # Limpiar ID (a veces Excel lo pone como científico 1.23E+17)
-                # Usamos una forma más segura para no perder precisión con números grandes
+                # Limpiar ID
                 raw_id_clean = "".join(filter(str.isdigit, raw_id))
                 if not raw_id_clean:
-                    # Si no hay dígitos, intentamos float por si acaso, pero con cuidado
                     discord_id = int(float(raw_id))
                 else:
                     discord_id = int(raw_id_clean)
                 
-                # Dividir nombre
-                partes = nombre_completo.split(' ', 1)
-                nombre = partes[0]
-                apellido = partes[1] if len(partes) > 1 else ''
-                
                 practicantes.append({
                     'id_discord': discord_id,
-                    'nombre': nombre,
-                    'apellido': apellido,
+                    'nombre_completo': nombre_completo,
                     'horas_base': horas_base
                 })
             except ValueError:
                 logging.warning(f"⚠️ ID inválido ignorado: {raw_id} ({nombre_completo})")
                 continue
                 
-        logging.info(f"✅ Leídos {len(practicantes)} practicantes de Google Sheets (Sin correos).")
+        logging.info(f"✅ Leídos {len(practicantes)} practicantes de Google Sheets (Formato unificado).")
         return practicantes
 
     except Exception as e:
@@ -129,7 +128,7 @@ def get_practicantes_from_sheet():
 async def sync_practicantes_to_db():
     """
     Función principal para sincronizar datos de Sheets hacia la BD.
-    Sincroniza ID, Nombre, Apellido y Horas Base. Ignora correos.
+    Sincroniza SOLO ID, Nombre Completo y Horas Base.
     """
     import database as db
     
@@ -138,26 +137,22 @@ async def sync_practicantes_to_db():
     if not practicantes:
         return
     
-    nuevos = 0
-    actualizados = 0
-    
     for p in practicantes:
-        # 1. Intentar Insertar (Nuevos) o Actualizar
-        # Nota: El campo correo es obligatorio en la BD actual. Insertaremos un dummy vacío.
+        # Insertar o actualizar con esquema simplificado
+        # Se asume que la tabla 'practicante' ha sido actualizada para tener 'nombre_completo'
         query_insert = """
-        INSERT INTO practicante (id_discord, nombre, apellido, correo, horas_base, estado)
-        VALUES (%s, %s, %s, '', %s, 'activo')
+        INSERT INTO practicante (id_discord, nombre_completo, horas_base)
+        VALUES (%s, %s, %s)
         ON DUPLICATE KEY UPDATE 
-            nombre = VALUES(nombre),
-            apellido = VALUES(apellido),
+            nombre_completo = VALUES(nombre_completo),
             horas_base = VALUES(horas_base)
         """
         
         await db.execute_query(query_insert, (
-            p['id_discord'], p['nombre'], p['apellido'], p['horas_base']
+            p['id_discord'], p['nombre_completo'], p['horas_base']
         ))
             
-    logging.info(f"📥 Sincronización completa (Nuevos/Actualizados) desde Sheets.")
+    logging.info(f"📥 Sincronización completa (Nombres unificados) desde Sheets.")
 
 async def export_report_to_sheet():
     """
@@ -194,18 +189,17 @@ async def export_report_to_sheet():
             worksheet_det = spreadsheet.add_worksheet(title="Reporte Detallado", rows="1000", cols="10")
         
         # 3. Formatear datos para gspread (Detallado)
-        headers_det = ["Fecha", "Nombre", "Apellido", "Entrada", "Salida", "Horas Sesión", "Horas Acumuladas", "Estado"]
+        headers_det = ["Fecha", "Nombre Completo", "Entrada", "Salida", "Horas Sesión", "Total Acumulado", "Estado"]
         rows_det = [headers_det]
         
         for row in data:
             rows_det.append([
                 str(row['Fecha']),
-                row['Nombre'],
-                row['Apellido'],
+                row.get('Nombre_Completo', 'N/A'),
                 str(row['Entrada']) if row['Entrada'] else '-',
                 str(row['Salida']) if row['Salida'] else '-',
                 str(row['Horas_Sesion']) if row['Horas_Sesion'] else '00:00:00',
-                str(row['Horas_Acumuladas_Hasta_Hoy']) if row['Horas_Acumuladas_Hasta_Hoy'] else '00:00:00',
+                str(row.get('Gran_Total_Acumulado', '00:00:00')),
                 row['Estado']
             ])
             
@@ -221,11 +215,10 @@ async def export_report_to_sheet():
         except gspread.WorksheetNotFound:
             worksheet_res = spreadsheet.add_worksheet(title="Resumen General", rows="100", cols="6")
 
-        # Consulta agrupa por practicante para ver totales reales
+        # Consulta de resumen: agrupa horas por practicante
         query_resumen = """
         SELECT 
-            p.nombre, 
-            p.apellido, 
+            p.nombre_completo, 
             IFNULL(p.horas_base, '00:00:00') as Horas_Base,
             -- Suma de horas trabajadas (diferencia salida - entrada)
             SEC_TO_TIME(SUM(IFNULL(TIME_TO_SEC(TIMEDIFF(a.hora_salida, a.hora_entrada)), 0))) as Horas_Trabajadas_Bot,
@@ -234,22 +227,21 @@ async def export_report_to_sheet():
                 IFNULL(p.horas_base, '00:00:00'),
                 SEC_TO_TIME(SUM(IFNULL(TIME_TO_SEC(TIMEDIFF(a.hora_salida, a.hora_entrada)), 0)))
             ) as Total_Acumulado,
-            -- Meta (Ejemplo 480h)
+            -- Meta (480 horas)
             '480:00:00' as Meta
         FROM practicante p
         LEFT JOIN asistencia a ON p.id = a.practicante_id AND a.hora_salida IS NOT NULL
-        GROUP BY p.id, p.nombre, p.apellido, p.horas_base
+        GROUP BY p.id, p.nombre_completo, p.horas_base
         ORDER BY Total_Acumulado DESC
         """
         data_resumen = await db.fetch_all(query_resumen)
         
-        headers_res = ["Nombre", "Apellido", "Horas Base (Anteriores)", "Horas Bot (Nuevas)", "TOTAL ACUMULADO", "Meta (480h)"]
+        headers_res = ["Nombre Completo", "Horas Base (Anteriores)", "Horas Bot (Nuevas)", "TOTAL ACUMULADO", "Meta (480h)"]
         rows_res = [headers_res]
         
         for row in data_resumen:
             rows_res.append([
-                row['nombre'],
-                row['apellido'],
+                row['nombre_completo'],
                 str(row['Horas_Base']),
                 str(row['Horas_Trabajadas_Bot']),
                 str(row['Total_Acumulado']),

@@ -82,27 +82,16 @@ async def ensure_db_setup():
     import logging
     logging.info("Verificando integridad de la base de datos...")
     
-    # 1. Tabla practicante
+    # 1. Tabla practicante (Esquema Simplificado: Solo ID, Nombre Completo, Horas Base)
+    # Nota: Eliminamos correo, semestre, estado, is_active, apellido.
     await execute_query("""
     CREATE TABLE IF NOT EXISTS practicante (
         id INT AUTO_INCREMENT PRIMARY KEY,
         id_discord BIGINT NOT NULL UNIQUE,
-        nombre VARCHAR(100) NOT NULL,
-        apellido VARCHAR(100) NOT NULL,
-        correo VARCHAR(255) DEFAULT '',
-        semestre INT DEFAULT 1,
-        estado VARCHAR(20) DEFAULT 'activo',
-        horas_base TIME DEFAULT '00:00:00',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        is_active BOOLEAN DEFAULT TRUE
+        nombre_completo VARCHAR(255) NOT NULL,
+        horas_base TIME DEFAULT '00:00:00'
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     """)
-
-    # 1.1 Migración: Asegurar que la columna horas_base exista (si la tabla ya existía)
-    try:
-        await execute_query("ALTER TABLE practicante ADD COLUMN horas_base TIME DEFAULT '00:00:00';")
-    except Exception:
-        pass # La columna ya existe o error ignorado
 
     # 2. Tabla estado_asistencia
     await execute_query("""
@@ -127,8 +116,6 @@ async def ensure_db_setup():
         hora_salida TIME,
         observaciones TEXT,
         motivo VARCHAR(255),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         FOREIGN KEY (practicante_id) REFERENCES practicante(id) ON DELETE CASCADE,
         FOREIGN KEY (estado_id) REFERENCES estado_asistencia(id),
         UNIQUE KEY unique_asistencia_dia (practicante_id, fecha)
@@ -145,48 +132,49 @@ async def ensure_db_setup():
         hora_salida TIME NULL,
         motivo TEXT NULL,
         estado VARCHAR(20) DEFAULT 'Pendiente',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         FOREIGN KEY (practicante_id) REFERENCES practicante(id) ON DELETE CASCADE,
         UNIQUE KEY unique_recuperacion_dia (practicante_id, fecha_recuperacion)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     """)
 
-    # 6. Vista para Reporte Excel y Metabase (Cálculos automáticos con Horas Base)
+    # 6. Vista para Reporte Excel y Metabase (Incluye Total: Horas Base + Horas Bot)
     await execute_query("""
     CREATE OR REPLACE VIEW reporte_asistencia AS
     SELECT 
-        p.nombre AS Nombre,
-        p.apellido AS Apellido,
+        a.id AS Asistencia_ID,
+        p.id_discord AS ID_Discord,
+        p.nombre_completo AS Nombre_Completo,
         a.fecha AS Fecha,
         a.hora_entrada AS Entrada,
         a.hora_salida AS Salida,
+        ea.estado AS Estado,
+        
+        -- Horas trabajadas en esta sesión específica
         TIMEDIFF(a.hora_salida, a.hora_entrada) AS Horas_Sesion,
         
-        -- Cálculo de Horas Acumuladas (Sesiones Previas + Sesión Actual + Horas Base)
+        -- Horas Base fijas desde Excel
+        p.horas_base AS Horas_Base,
+
+        -- Total Horas Bot (histórico hasta hoy)
+        (
+            SELECT SEC_TO_TIME(SUM(TIME_TO_SEC(TIMEDIFF(a2.hora_salida, a2.hora_entrada))))
+            FROM asistencia a2
+            WHERE a2.practicante_id = p.id AND a2.hora_salida IS NOT NULL
+        ) AS Total_Horas_Bot,
+
+        -- GRAN TOTAL (Base + Bot)
         ADDTIME(
             IFNULL(p.horas_base, '00:00:00'),
-            (SELECT SEC_TO_TIME(SUM(TIME_TO_SEC(TIMEDIFF(a2.hora_salida, a2.hora_entrada))))
-             FROM asistencia a2 
-             WHERE a2.practicante_id = p.id AND a2.hora_salida IS NOT NULL AND a2.fecha <= a.fecha)
-        ) AS Horas_Acumuladas_Hasta_Hoy,
-        
-        -- Metas y Faltantes (Calculado al vuelo)
-        '480:00:00' AS Meta_Horas,
-        
-        TIMEDIFF('480:00:00', 
-            ADDTIME(
-                IFNULL(p.horas_base, '00:00:00'),
-                (SELECT SEC_TO_TIME(SUM(TIME_TO_SEC(TIMEDIFF(a2.hora_salida, a2.hora_entrada))))
-                 FROM asistencia a2 
-                 WHERE a2.practicante_id = p.id AND a2.hora_salida IS NOT NULL AND a2.fecha <= a.fecha)
-            )
-        ) AS Horas_Restantes,
-        
-        ea.estado AS Estado
-    FROM practicante p
-    JOIN asistencia a ON p.id = a.practicante_id
+            IFNULL((
+                SELECT SEC_TO_TIME(SUM(TIME_TO_SEC(TIMEDIFF(a3.hora_salida, a3.hora_entrada))))
+                FROM asistencia a3
+                WHERE a3.practicante_id = p.id AND a3.hora_salida IS NOT NULL
+            ), '00:00:00')
+        ) AS Gran_Total_Acumulado
+
+    FROM asistencia a
+    JOIN practicante p ON a.practicante_id = p.id
     JOIN estado_asistencia ea ON a.estado_id = ea.id;
     """)
     
-    logging.info("Base de datos verificada e inicializada correctamente.")
+    logging.info("Base de datos inicializada Correctamente (Esquema Simplificado).")
