@@ -77,9 +77,20 @@ def get_practicantes_from_sheet():
             # Correo eliminado por solicitud del usuario
             horas_base = row[idx_horas_base].strip() if idx_horas_base is not None and len(row) > idx_horas_base else "00:00:00"
             
-            # Validar formato de horas base (HH:MM:SS), si falla poner 00:00:00
-            if not horas_base or ':' not in horas_base:
+            # Validar formato de horas base
+            # 1. Si es solo números (ej: "10"), lo convertimos a "10:00:00"
+            if horas_base and horas_base.isdigit():
+                horas_base = f"{horas_base}:00:00"
+            # 2. Si no tiene ':' y tampoco es número, o está vacío, poner 0
+            elif not horas_base or ':' not in horas_base:
                 horas_base = "00:00:00"
+            # 3. Si tiene formato decimal (ej "10.5"), intentamos arreglarlo o lo dejamos en 0
+            elif '.' in horas_base and ':' not in horas_base:
+                 try:
+                     h = int(float(horas_base))
+                     horas_base = f"{h}:00:00"
+                 except:
+                     horas_base = "00:00:00"
 
             if not raw_id or not nombre_completo: continue
             
