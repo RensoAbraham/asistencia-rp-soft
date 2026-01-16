@@ -161,7 +161,7 @@ async def export_report_to_sheet():
     import database as db
     
     # 1. Obtener datos de la base de datos
-    query = "SELECT * FROM reporte_asistencia ORDER BY Fecha DESC, Nombre ASC"
+    query = "SELECT * FROM reporte_asistencia ORDER BY Fecha DESC, Nombre_Completo ASC"
     data = await db.fetch_all(query)
     
     if not data:
