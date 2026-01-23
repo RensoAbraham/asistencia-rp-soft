@@ -13,6 +13,34 @@ CREDENTIALS_FILE = '/app/credentials.json'  # Ruta en el contenedor Docker
 # CREDENTIALS_FILE = 'credentials.json' 
 SHEET_NAME_ENV = 'GOOGLE_SHEET_NAME' # Nombre de la hoja en .env
 
+def format_duration(td_str):
+    """
+    Convierte un string de duración (HH:MM:SS o 'X days, HH:MM:SS') 
+    al formato estricto [HH]:MM:SS.
+    Ejemplo: '1 day, 02:00:00' -> '26:00:00'
+    """
+    if not td_str or td_str == 'None':
+        return '00:00:00'
+    
+    try:
+        if 'day' in td_str:
+            # Formato: '1 day, 13:28:18' o '2 days, 13:28:18'
+            parts = td_str.split(',')
+            days_part = parts[0].strip()
+            time_part = parts[1].strip()
+            
+            days = int(days_part.split(' ')[0])
+            h, m, s = map(int, time_part.split(':'))
+            
+            total_hours = (days * 24) + h
+            return f"{total_hours:02d}:{m:02d}:{s:02d}"
+        else:
+            # Ya está en formato HH:MM:SS, o al menos no tiene días
+            return td_str
+    except Exception as e:
+        logging.warning(f"⚠️ Error formateando duración '{td_str}': {e}")
+        return td_str
+
 def get_practicantes_from_sheet():
     """
     Lee la lista de practicantes desde Google Sheets.
@@ -194,7 +222,8 @@ async def export_report_to_sheet():
             worksheet_det = spreadsheet.add_worksheet(title="Reporte Detallado", rows="1000", cols="10")
         
         # 3. Formatear datos para gspread (Detallado)
-        headers_det = ["Fecha", "Nombre Completo", "Entrada", "Salida", "Horas Sesión", "Total Acumulado", "Estado"]
+        # Eliminamos "Total Acumulado" por requerimiento del usuario
+        headers_det = ["Fecha", "Nombre Completo", "Entrada", "Salida", "Horas Sesión", "Estado"]
         rows_det = [headers_det]
         
         for row in data:
@@ -203,8 +232,7 @@ async def export_report_to_sheet():
                 row.get('Nombre_Completo', 'N/A'),
                 str(row['Entrada']) if row['Entrada'] else '-',
                 str(row['Salida']) if row['Salida'] else '-',
-                str(row['Horas_Sesion']) if row['Horas_Sesion'] else '00:00:00',
-                str(row.get('Gran_Total_Acumulado', '00:00:00')),
+                format_duration(str(row['Horas_Sesion'])),
                 row['Estado']
             ])
             
@@ -247,9 +275,9 @@ async def export_report_to_sheet():
         for row in data_resumen:
             rows_res.append([
                 row['nombre_completo'],
-                str(row['Horas_Base']),
-                str(row['Horas_Trabajadas_Bot']),
-                str(row['Total_Acumulado']),
+                format_duration(str(row['Horas_Base'])),
+                format_duration(str(row['Horas_Trabajadas_Bot'])),
+                format_duration(str(row['Total_Acumulado'])),
                 row['Meta']
             ])
 
@@ -257,6 +285,45 @@ async def export_report_to_sheet():
         worksheet_res.update('A1', rows_res)
         
         logging.info(f"📊 Reportes actualizados: 'Reporte Detallado' ({len(data)} filas) y 'Resumen General' ({len(data_resumen)} filas).")
+
+        # ---------------------------------------------------------
+        # 6. Generar Hoja de "Reporte Anti-Farming" (Incidentes)
+        # ---------------------------------------------------------
+        try:
+            worksheet_af = spreadsheet.worksheet("Reporte Anti-Farming")
+        except gspread.WorksheetNotFound:
+            worksheet_af = spreadsheet.add_worksheet(title="Reporte Anti-Farming", rows="100", cols="6")
+
+        # Consulta de incidentes (donde horas_extra > 0)
+        query_af = """
+        SELECT 
+            p.nombre_completo,
+            a.fecha,
+            a.horas_extra,
+            a.hora_salida as hora_limite_aplicada
+        FROM asistencia a
+        JOIN practicante p ON a.practicante_id = p.id
+        WHERE a.horas_extra > '00:00:00'
+        ORDER BY a.fecha DESC
+        """
+        data_af = await db.fetch_all(query_af)
+        
+        headers_af = ["Nombre Completo", "Fecha", "Horas Extra (No Contadas)", "Salida Automática", "Validado (X/OK)"]
+        rows_af = [headers_af]
+        
+        for row in data_af:
+            rows_af.append([
+                row['nombre_completo'],
+                str(row['fecha']),
+                str(row['horas_extra']),
+                str(row['hora_limite_aplicada']),
+                ""  # Columna vacía para validación manual
+            ])
+
+        worksheet_af.clear()
+        worksheet_af.update('A1', rows_af)
+        logging.info(f"🚨 Reporte Anti-Farming actualizado: {len(data_af)} incidentes.")
+
         
     except Exception as e:
         logging.error(f"❌ Error al exportar reporte a Google Sheets: {e}")

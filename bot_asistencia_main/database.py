@@ -114,6 +114,7 @@ async def ensure_db_setup():
         fecha DATE NOT NULL,
         hora_entrada TIME,
         hora_salida TIME,
+        horas_extra TIME DEFAULT '00:00:00',
         observaciones TEXT,
         motivo VARCHAR(255),
         FOREIGN KEY (practicante_id) REFERENCES practicante(id) ON DELETE CASCADE,
@@ -137,7 +138,7 @@ async def ensure_db_setup():
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     """)
 
-    # 6. Vista para Reporte Excel y Metabase (Incluye Total: Horas Base + Horas Bot)
+    # 6. Vista para Reporte Excel (Incluye Total: Horas Base + Horas Bot)
     await execute_query("""
     CREATE OR REPLACE VIEW reporte_asistencia AS
     SELECT 

@@ -17,6 +17,7 @@ class Asistencia(commands.GroupCog, name="asistencia"):
     def __init__(self, bot: commands.Bot):
         super().__init__()
         self.bot = bot
+        self.MAX_SESSION_HOURS = 6  # Límite de horas por sesión para evitar "farming"
 
     @app_commands.command(name='entrada', description="Registrar tu hora de entrada")
     async def entrada(self, interaction: discord.Interaction):
@@ -118,7 +119,7 @@ class Asistencia(commands.GroupCog, name="asistencia"):
             return
 
         fecha_actual = datetime.now(LIMA_TZ).date()
-        query_asistencia = "SELECT id, hora_salida FROM asistencia WHERE practicante_id = %s AND fecha = %s"
+        query_asistencia = "SELECT id, hora_salida, hora_entrada FROM asistencia WHERE practicante_id = %s AND fecha = %s"
         asistencia = await db.fetch_one(query_asistencia, (practicante_id, fecha_actual))
         
         if not asistencia:
@@ -136,12 +137,46 @@ class Asistencia(commands.GroupCog, name="asistencia"):
             return
 
         hora_actual = datetime.now(LIMA_TZ).time()
+        hora_limite_practicas = time(14, 30)
+        
+        mensaje_extra = ""
+        horas_extra_str = "00:00:00"
+        
+        # Lógica Anti-Farming: Soft Cap a las 14:30
+        if hora_actual > hora_limite_practicas:
+            # Calcular horas extra (desde las 14:30 hasta la hora real de salida)
+            dt_actual = datetime.combine(fecha_actual, hora_actual)
+            dt_limite = datetime.combine(fecha_actual, hora_limite_practicas)
+            duration_extra = dt_actual - dt_limite
+            
+            # Formatear duración extra
+            total_seconds = int(duration_extra.total_seconds())
+            hours, remainder = divmod(total_seconds, 3600)
+            minutes, seconds = divmod(remainder, 60)
+            horas_extra_display = f"{hours} horas, {minutes} minutos y {seconds} segundos"
+            horas_extra_str = f"{hours:02}:{minutes:02}:{seconds:02}"
+
+            # La hora oficial de salida se marca a las 14:30
+            hora_salida_db = hora_limite_practicas
+            
+            mensaje_extra = (
+                f"\n\n⚠️ **AntiFarming: Salida fuera de horas de práctica detectada** ⚠️\n"
+                f"Las horas que hayas hecho desde las 14:30 PM hasta las {hora_actual.strftime('%H:%M')} (**{horas_extra_display}**) "
+                f"**pueden llegar a no ser contadas**.\n"
+                f"Informa a un líder o a Renso para que puedan validarte esas horas mostrando el trabajo que realizaste. "
+                f"Caso contrario, las horas no se verán reflejadas en tu conteo."
+            )
+            logging.warning(f"Anti-Farming triggered for {interaction.user.display_name}: {horas_extra_display} extra.")
+        else:
+            # Salida normal dentro del horario
+            hora_salida_db = hora_actual
 
         if hora_actual < time(14, 0):
             await interaction.response.defer(ephemeral=True)
             # Salida anticipada: registrar y advertir
-            query_update_salida = "UPDATE asistencia SET hora_salida = %s WHERE id = %s"
-            await db.execute_query(query_update_salida, (hora_actual, asistencia['id']))
+            # Nota: Si es anticipada (antes de las 14:00), no hay horas extra
+            query_update_salida = "UPDATE asistencia SET hora_salida = %s, horas_extra = %s WHERE id = %s"
+            await db.execute_query(query_update_salida, (hora_salida_db, '00:00:00', asistencia['id']))
             
             logging.warning(f'Salida anticipada registrada para el usuario {interaction.user.display_name}.')
             
@@ -154,12 +189,13 @@ class Asistencia(commands.GroupCog, name="asistencia"):
             await interaction.followup.send(mensaje_alerta, ephemeral=True)
         else:
             await interaction.response.defer(ephemeral=True)
-            # Salida normal, solo actualizar hora
-            query_update_salida = "UPDATE asistencia SET hora_salida = %s WHERE id = %s"
-            await db.execute_query(query_update_salida, (hora_actual, asistencia['id']))
+            # Salida normal (o post 14:30)
+            query_update_salida = "UPDATE asistencia SET hora_salida = %s, horas_extra = %s WHERE id = %s"
+            await db.execute_query(query_update_salida, (hora_salida_db, horas_extra_str, asistencia['id']))
+            
             logging.info(f'Salida registrada para el usuario {interaction.user.display_name}.')
             await interaction.followup.send(
-                f"✅ {nombre_usuario}, se ha registrado tu salida a las **{hora_actual.strftime('%H:%M')}**.",
+                f"✅ {nombre_usuario}, se ha registrado tu salida a las **{hora_actual.strftime('%H:%M')}**.{mensaje_extra}",
                 ephemeral=True
             )
 
