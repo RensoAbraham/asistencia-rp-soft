@@ -61,8 +61,11 @@ async def canal_permitido(interaction: discord.Interaction) -> bool:
     if canal_id not in canales_permitidos:
         import logging
         logging.warning(f"🚫 Canal denegado en Servidor {servidor_id} (Canal ID: {canal_id})")
+        # ID oficial del canal de asistencia
+        canal_asistencia_id = 1457747478592884878
+        
         await interaction.response.send_message(
-            f"Este comando no está habilitado en este canal (ID: {canal_id}). Por favor, usa los canales oficiales.",
+            f"🚫 **Canal Incorrecto**\nEste comando solo está habilitado en el canal de asistencia.\n👉 Por favor, ve a <#{canal_asistencia_id}> para registrar tu asistencia.",
             ephemeral=True
         )
         return False
