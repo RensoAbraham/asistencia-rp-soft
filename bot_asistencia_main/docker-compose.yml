@@ -1,0 +1,10 @@
+services:
+  bot-asistencia:
+    build: .
+    restart: always
+    env_file:
+      - .env
+    volumes:
+      - ./credentials.json:/app/credentials.json
+    environment:
+      - PYTHONUNBUFFERED=1
