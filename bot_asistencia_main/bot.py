@@ -8,6 +8,7 @@ import asyncio
 import logging
 import datetime
 from zoneinfo import ZoneInfo
+from aiohttp import web
 
 # Zona horaria de Perú
 LIMA_TZ = ZoneInfo("America/Lima")
@@ -203,6 +204,21 @@ async def setup_hook():
     send_metrics_to_backend.start()
     logging.info(f'Bot conectado como {bot.user}')
 
+# Servidor web para Health Check
+async def health_check_handler(request):
+    return web.Response(text="Bot is running!", status=200)
+
+async def start_health_check():
+    app = web.Application()
+    app.router.add_get("/", health_check_handler)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    # Usar el puerto que asigne el hosting o el 10000 por defecto
+    port = int(os.getenv("PORT", 10000))
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+    logging.info(f"🌐 Servidor de Health Check iniciado en el puerto {port}")
+
 # Manejo de errores globales
 async def main():
     if not TOKEN:
@@ -212,6 +228,8 @@ async def main():
     if not all([BACKEND_API_KEY, BACKEND_URL]):
         logging.warning("BACKEND_API_KEY o BACKEND_URL no configurados. El bot funcionará sin enviar métricas al backend.")
 
+    # Iniciar servidor Health Check
+    await start_health_check()
 
     try:
         await bot.start(TOKEN)
