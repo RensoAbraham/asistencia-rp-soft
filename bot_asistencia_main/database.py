@@ -15,10 +15,12 @@ DB_CONFIG = {
     "user": os.getenv("DB_USER"),
     "password": os.getenv("DB_PASSWORD"),
     "db": os.getenv("DB_NAME"),
-    "port": int(os.getenv("DB_PORT", 3306)),
+    "port": int(os.getenv("DB_PORT", 4000)), # TiDB usa 4000 por defecto
     "autocommit": False,
-    # Habilitar SSL para bases de datos en la nube (TiDB requiere SSL)
-    "ssl": {"ca": os.getenv("SSL_CA_PATH")} if os.getenv("DB_USE_SSL") == "True" else None,
+    # Habilitar SSL para TiDB Cloud
+    "ssl": {
+        "ca": os.getenv("SSL_CA_PATH", "isrgrootx1.pem")
+    } if os.getenv("DB_USE_SSL") == "True" else None,
 }
 
 # Pool de conexiones global
