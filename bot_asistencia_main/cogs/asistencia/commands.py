@@ -183,8 +183,7 @@ class Asistencia(commands.GroupCog, name="asistencia"):
             mensaje_alerta = (
                 f"⚠️ **SALIDA ANTICIPADA DETECTADA** ⚠️\n\n"
                 f"{nombre_usuario}, tu salida ha sido registrada a las **{hora_actual.strftime('%H:%M')}**.\n\n"
-                f"🔴 **ATENCIÓN:** Debes avisar al **Líder encargado** al retirarte. De lo contrario, **el bot dejará de contar tu asistencia**.\n\n"
-                f"🚑 **EMERGENCIAS:** Si es una emergencia, abre un **Ticket** o comunícate directamente con el **Sr. Wilber**."
+                f"🔴 **ATENCIÓN:** Debes informar a un **Líder encargado** o al **equipo de desarrollo del bot** al retirarte."
             )
             await interaction.followup.send(mensaje_alerta, ephemeral=True)
         else:
