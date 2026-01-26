@@ -31,32 +31,28 @@ Como el VPS se cayó, aquí tienes las mejores opciones para volver a estar onli
 - **Cons:** El servicio entra en "reposo" si no recibe peticiones HTTP (se puede solucionar con un "ping" básico o usándolo como Worker).
 
 ### Opción B: TiDB Cloud (Para la Base de Datos MySQL)
-- **Tipo:** Serverless MySQL.
-- **Pros:** 100% compatible con tu código actual. Hosting gratuito generoso.
-- **Cons:** Ninguno relevante para este bot.
-
-### Opción C: SQLite (Migración Local)
-- **Tipo:** Archivo de base de datos local (`database.db`).
-- **Pros:** No dependes de un servidor de base de datos externo. Es un solo archivo.
-- **Cons:** Requiere pequeños cambios en el código para cambiar los comandos de MySQL a SQLite.
+- **Tipo**: Serverless MySQL.
+- **Pros**: 100% compatible con tu código actual. Hosting gratuito generoso. Requiere SSL.
+- **Configuración Especial**:
+    *   `DB_PORT`: `4000`
+    *   `DB_USE_SSL`: `True`
+    *   `SSL_CA_PATH`: `isrgrootx1.pem` (Ya incluido en el repositorio).
 
 ---
 
-## 💾 Estrategia de Migración de Datos
+## 💾 Estrategia de Migración de Datos (TiDB Cloud)
 
-Para no perder a los practicantes ya registrados ni sus horas, sigue estos pasos:
-
-1. **Respaldo Manual (MySQL):**
-   Si aún tienes acceso a la base de datos o un respaldo:
-   ```bash
-   mysqldump -u root -p nombre_de_tu_db > respaldo_asistencia.sql
-   ```
-
-2. **Restauración en nuevo Hosting:**
-   Una vez creada la base de datos en TiDB o similar:
-   ```bash
-   mysql -u usuario_nuevo -p nombre_db_nueva < respaldo_asistencia.sql
-   ```
+1.  **Conexión**: Usa los datos que te dio TiDB (Host, User, Password).
+2.  **Base de Datos**: Te recomiendo crear una base de datos propia (ej. `asistencia_db`) en lugar de usar la de `test`.
+3.  **Variables de Entorno**: Configura tu hosting (Render/Railway) con estos valores:
+    ```env
+    DB_HOST=gateway01.us-east-1.prod.aws.tidbcloud.com
+    DB_USER=4H85vqbbpvRhXiZ.root
+    DB_PASSWORD=vrVL3o5ytoXF0wa9
+    DB_NAME=asistencia_db  # O la que elijas
+    DB_PORT=4000
+    DB_USE_SSL=True
+    ```
 
 3. **Google Sheets como "Bote de Salvavidas":**
    Dado que el bot sincroniza con Sheets, si la base de datos se pierde totalmente:

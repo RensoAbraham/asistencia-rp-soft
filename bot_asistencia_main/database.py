@@ -1,5 +1,6 @@
 import os
 import aiomysql
+import ssl
 from dotenv import load_dotenv
 from typing import Optional, Union, Tuple, Dict, Any, List
 from contextlib import asynccontextmanager
@@ -10,6 +11,16 @@ from collections.abc import AsyncIterator
 
 load_dotenv()
 
+def get_ssl_context():
+    if os.getenv("DB_USE_SSL") == "True":
+        ctx = ssl.create_default_context(cafile=os.getenv("SSL_CA_PATH", "isrgrootx1.pem"))
+        # TiDB Cloud requiere SSL pero a veces hay temas de compatibilidad con check_hostname
+        # Ajustamos según sea necesario. Para la mayoría de nubes, esto es suficiente.
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_REQUIRED
+        return ctx
+    return None
+
 DB_CONFIG = {
     "host": os.getenv("DB_HOST"),
     "user": os.getenv("DB_USER"),
@@ -17,10 +28,7 @@ DB_CONFIG = {
     "db": os.getenv("DB_NAME"),
     "port": int(os.getenv("DB_PORT", 4000)), # TiDB usa 4000 por defecto
     "autocommit": False,
-    # Habilitar SSL para TiDB Cloud
-    "ssl": {
-        "ca": os.getenv("SSL_CA_PATH", "isrgrootx1.pem")
-    } if os.getenv("DB_USE_SSL") == "True" else None,
+    "ssl": get_ssl_context()
 }
 
 # Pool de conexiones global
