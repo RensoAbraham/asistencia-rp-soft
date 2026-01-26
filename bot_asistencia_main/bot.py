@@ -199,14 +199,16 @@ async def setup_hook():
     sync_google_sheets_task.start()
     logging.info('Tarea de sincronización con Google Sheets iniciada.')
 
-    # Configurar presencia del bot
-    await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name="la asistencia | RP Soft"))
-    logging.info('Presencia del bot configurada.')
-
     # Nota: Los cogs ahora están organizados en carpetas (asistencia/, faltas/, recuperacion/)
     logging.info('Iniciando tarea de envío de métricas...')
     send_metrics_to_backend.start()
-    logging.info(f'Bot conectado como {bot.user}')
+    logging.info(f'Bot logueado como {bot.user} (Configurando conexión...)')
+
+@bot.event
+async def on_ready():
+    # Configurar presencia del bot cuando ya está totalmente conectado
+    await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name="la asistencia | RP Soft"))
+    logging.info(f'✅ Bot conectado y listo como {bot.user}')
 
 # Servidor web para Health Check
 async def health_check_handler(request):
