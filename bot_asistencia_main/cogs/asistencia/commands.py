@@ -22,10 +22,11 @@ class Asistencia(commands.GroupCog, name="asistencia"):
     @app_commands.command(name='entrada', description="Registrar tu hora de entrada")
     async def entrada(self, interaction: discord.Interaction):
         from utils import es_domingo, LIMA_TZ
+        await interaction.response.defer(ephemeral=True)
         
         # Bloquear domingos
         if es_domingo():
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 "⛔ **Día Domingo, No laboral**\nLos comandos de asistencia están deshabilitados los domingos.",
                 ephemeral=True
             )
@@ -34,8 +35,6 @@ class Asistencia(commands.GroupCog, name="asistencia"):
         if not await canal_permitido(interaction):
             logging.warning(f'Canal no permitido para el usuario {interaction.user.display_name}.')
             return
-        
-        await interaction.response.defer(ephemeral=True)
 
         discord_id = interaction.user.id
         nombre_usuario = interaction.user.mention
@@ -96,10 +95,11 @@ class Asistencia(commands.GroupCog, name="asistencia"):
     @app_commands.command(name='salida', description="Registrar tu hora de salida")
     async def salida(self, interaction: discord.Interaction):
         from utils import es_domingo, LIMA_TZ
+        await interaction.response.defer(ephemeral=True)
         
         # Bloquear domingos
         if es_domingo():
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 "⛔ **Día Domingo, No laboral**\nLos comandos de asistencia están deshabilitados los domingos.",
                 ephemeral=True
             )
@@ -200,11 +200,10 @@ class Asistencia(commands.GroupCog, name="asistencia"):
 
     @app_commands.command(name='estado', description="Consultar tu estado de asistencia del día")
     async def estado(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
         if not await canal_permitido(interaction):
             logging.warning(f'Canal no permitido para el usuario {interaction.user.display_name}.')
             return
-        
-        await interaction.response.defer(ephemeral=True)
 
         discord_id = interaction.user.id
         nombre_usuario = interaction.user.display_name
@@ -246,11 +245,10 @@ class Asistencia(commands.GroupCog, name="asistencia"):
     @app_commands.command(name='historial', description="Consultar tu historial de asistencia")
     @app_commands.describe(dias="Cantidad de días a mostrar (1-15)")
     async def historial(self, interaction: discord.Interaction, dias: int = 7):
+        await interaction.response.defer(ephemeral=True)
         if not await canal_permitido(interaction):
             logging.warning(f'Canal no permitido para el usuario {interaction.user.display_name}.')
             return
-        
-        await interaction.response.defer(ephemeral=True)
 
         discord_id = interaction.user.id
         nombre_usuario = interaction.user.mention
