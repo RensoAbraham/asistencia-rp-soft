@@ -199,6 +199,10 @@ async def setup_hook():
     sync_google_sheets_task.start()
     logging.info('Tarea de sincronización con Google Sheets iniciada.')
 
+    # Configurar presencia del bot
+    await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name="la asistencia | RP Soft"))
+    logging.info('Presencia del bot configurada.')
+
     # Nota: Los cogs ahora están organizados en carpetas (asistencia/, faltas/, recuperacion/)
     logging.info('Iniciando tarea de envío de métricas...')
     send_metrics_to_backend.start()
