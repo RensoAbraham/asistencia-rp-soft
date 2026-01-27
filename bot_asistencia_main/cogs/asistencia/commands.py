@@ -123,14 +123,14 @@ class Asistencia(commands.GroupCog, name="asistencia"):
         asistencia = await db.fetch_one(query_asistencia, (practicante_id, fecha_actual))
         
         if not asistencia:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 f"{nombre_usuario}, no has registrado tu entrada el día de hoy.",
                 ephemeral=True
             )
             return
 
         if asistencia['hora_salida']:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 f"{nombre_usuario}, ya has registrado tu salida el día de hoy.",
                 ephemeral=True
             )
@@ -172,7 +172,6 @@ class Asistencia(commands.GroupCog, name="asistencia"):
             hora_salida_db = hora_actual
 
         if hora_actual < time(14, 0):
-            await interaction.response.defer(ephemeral=True)
             # Salida anticipada: registrar y advertir
             # Nota: Si es anticipada (antes de las 14:00), no hay horas extra
             query_update_salida = "UPDATE asistencia SET hora_salida = %s, horas_extra = %s WHERE id = %s"
@@ -187,7 +186,6 @@ class Asistencia(commands.GroupCog, name="asistencia"):
             )
             await interaction.followup.send(mensaje_alerta, ephemeral=True)
         else:
-            await interaction.response.defer(ephemeral=True)
             # Salida normal (o post 14:30)
             query_update_salida = "UPDATE asistencia SET hora_salida = %s, horas_extra = %s WHERE id = %s"
             await db.execute_query(query_update_salida, (hora_salida_db, horas_extra_str, asistencia['id']))

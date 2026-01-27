@@ -19,10 +19,11 @@ class Recuperacion(commands.Cog):
     @app_commands.command(name='recuperación', description="Registrar una sesión de recuperación")
     async def recuperacion(self, interaction: discord.Interaction):
         from utils import es_domingo, LIMA_TZ
+        await interaction.response.defer(ephemeral=True)
         
         # Bloquear domingos
         if es_domingo():
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 "⛔ **Día Domingo, No laboral**\nLos comandos de asistencia están deshabilitados los domingos.",
                 ephemeral=True
             )
@@ -39,11 +40,10 @@ class Recuperacion(commands.Cog):
         
         # Si hay roles configurados, verificar permisos
         if roles_permitidos:
-            if not await verificar_rol_permitido(interaction, roles_permitidos, usar_followup=False):
+            if not await verificar_rol_permitido(interaction, roles_permitidos, usar_followup=True):
                 logging.warning(f'Usuario {interaction.user.display_name} no tiene los roles necesarios para recuperación.')
                 return
         
-        await interaction.response.defer(ephemeral=True)
 
         discord_id = interaction.user.id
         nombre_usuario = interaction.user.mention
