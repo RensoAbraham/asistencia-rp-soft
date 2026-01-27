@@ -177,8 +177,8 @@ async def setup_hook():
     await bot.load_extension('cogs.recuperacion.commands')
     logging.info('...Recuperación cargada')
     
-    # await bot.load_extension('cogs.reportes.commands')
-    # logging.info('...Reportes cargada')
+    await bot.load_extension('cogs.admin.commands')
+    logging.info('...Admin cargada')
     
     logging.info('Sincronizando comandos (tree.sync)...')
     await bot.tree.sync()
