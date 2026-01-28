@@ -132,13 +132,19 @@ def get_practicantes_from_sheet():
                  except:
                      horas_base = "00:00:00"
 
-            if not raw_id or not nombre_completo: continue
+            if not raw_id or not nombre_completo: 
+                logging.debug(f"⏩ Fila omitida por ID o Nombre vacío: ID='{raw_id}', Nombre='{nombre_completo}'")
+                continue
             
             try:
                 # Limpiar ID
                 raw_id_clean = "".join(filter(str.isdigit, raw_id))
                 if not raw_id_clean:
-                    discord_id = int(float(raw_id))
+                    if '.' in raw_id:
+                        discord_id = int(float(raw_id))
+                    else:
+                        logging.warning(f"⚠️ ID de Discord inválido (no contiene números): '{raw_id}'")
+                        continue
                 else:
                     discord_id = int(raw_id_clean)
                 
