@@ -7,7 +7,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 import database as db
 import logging
-from utils import obtener_practicante, obtener_estado_asistencia
+from utils import obtener_practicante, obtener_estado_asistencia, format_timedelta, format_timedelta_total
 
 LIMA_TZ = ZoneInfo("America/Lima")
 
@@ -63,8 +63,8 @@ class Admin(commands.GroupCog, name="admin"):
         lista_practicantes = ""
         for res in resultados:
             nombre = res['nombre_completo']
-            entrada = res['hora_entrada'].strftime('%H:%M') if res['hora_entrada'] else "--:--"
-            salida = res['hora_salida'].strftime('%H:%M') if res['hora_salida'] else "--:--"
+            entrada = format_timedelta(res['hora_entrada'])
+            salida = format_timedelta(res['hora_salida'])
             estado = res['estado'] or "Falta"
             
             emoji = "✅" if res['hora_entrada'] else "❌"
@@ -171,7 +171,7 @@ class Admin(commands.GroupCog, name="admin"):
         # Esta vista ya existe en database.py o podemos consultar directamente
         query = """
         SELECT p.nombre_completo, 
-               SEC_TO_TIME(SUM(TIME_TO_SEC(IFNULL(TIMEDIFF(a.hora_salida, a.hora_entrada), '00:00:00')))) as horas_trabajadas,
+               SEC_TO_TIME(SUM(TIME_TO_SEC(IFNULL(TIMEDIFF(a.hora_salida, a.hora_entrada), '00:00:00')))) as horas_bot_raw,
                p.horas_base
         FROM practicante p
         LEFT JOIN asistencia a ON p.id = a.practicante_id
@@ -182,18 +182,40 @@ class Admin(commands.GroupCog, name="admin"):
 
         embed = Embed(
             title="📈 Resumen General de Horas",
-            color=Color.green(),
-            description="Acumulado total de horas trabajadas (incluyendo horas base)."
+            description="Acumulado total de horas trabajadas (Base + Bot).",
+            color=Color.green()
         )
 
         for res in resultados:
-            trabajadas = str(res['horas_trabajadas']) if res['horas_trabajadas'] else "00:00:00"
-            base = res['horas_base'] or "00:00:00"
+            bot_str = format_timedelta_total(res['horas_bot_raw'])
+            base_str = format_timedelta_total(res['horas_base'])
             
-            # Intentar sumar (formato simple para el reporte)
+            # Cálculo de Total (sumando bot y base)
+            try:
+                # Bot
+                h1, m1, s1 = map(int, bot_str.split(':'))
+                # Base
+                h2, m2, s2 = map(int, base_str.split(':'))
+                
+                total_h = h1 + h2
+                total_m = m1 + m2
+                total_s = s1 + s2
+                
+                # Ajustar desbordamientos
+                if total_s >= 60:
+                    total_m += total_s // 60
+                    total_s = total_s % 60
+                if total_m >= 60:
+                    total_h += total_m // 60
+                    total_m = total_m % 60
+                
+                total_final = f"{total_h:02d}:{total_m:02d}:{total_s:02d}"
+            except:
+                total_final = "Error"
+
             embed.add_field(
                 name=res['nombre_completo'],
-                value=f"⏳ Trabajadas: `{trabajadas}`\n📅 Base: `{base}`",
+                value=f"✅ Total: **{total_final}**\n*(Bot: {bot_str} | Base: {base_str})*",
                 inline=True
             )
 

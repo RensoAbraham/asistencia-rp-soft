@@ -7,6 +7,51 @@ from zoneinfo import ZoneInfo
 # Zona horaria de Perú
 LIMA_TZ = ZoneInfo("America/Lima")
 
+def format_timedelta(td):
+    """Convierte un timedelta o time a string HH:MM:SS"""
+    if td is None:
+        return "--:--"
+    if isinstance(td, datetime.time):
+        return td.strftime("%H:%M")
+    
+    # Si es timedelta (común en MySQL TIME)
+    total_seconds = int(td.total_seconds())
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    return f"{hours:02}:{minutes:02}"
+
+def format_timedelta_total(td_val):
+    """
+    Convierte un valor de tiempo de la BD (timedelta, string o None) 
+    en un formato de horas totales [HH]:MM:SS.
+    Ejemplo: timedelta de 47 horas -> '47:00:00'
+    """
+    if td_val is None:
+        return "00:00:00"
+    
+    if isinstance(td_val, datetime.timedelta):
+        total_seconds = int(td_val.total_seconds())
+        hours = total_seconds // 3600
+        minutes = (total_seconds % 3600) // 60
+        seconds = total_seconds % 60
+        return f"{hours:02}:{minutes:02}:{seconds:02}"
+    
+    # Si ya es un string, intentamos normalizarlo (por si viene con 'days')
+    td_str = str(td_val)
+    if 'day' in td_str:
+        # Reutilizamos lógica de format_duration de google_sheets o la replicamos aquí
+        try:
+            parts = td_str.split(',')
+            days_part = parts[0].strip()
+            time_part = parts[1].strip()
+            days = int(days_part.split(' ')[0])
+            h, m, s = map(int, time_part.split(':'))
+            total_hours = (days * 24) + h
+            return f"{total_hours:02}:{m:02}:{s:02}"
+        except:
+            return td_str
+    return td_str
+
 def es_domingo() -> bool:
     """Verifica si hoy es domingo en hora de Perú"""
     return datetime.datetime.now(LIMA_TZ).weekday() == 6
