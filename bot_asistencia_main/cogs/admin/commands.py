@@ -221,5 +221,28 @@ class Admin(commands.GroupCog, name="admin"):
 
         await interaction.followup.send(embed=embed, ephemeral=True)
 
+    @app_commands.command(name='sincronizar', description="Forzar sincronización inmediata con Google Sheets")
+    async def sincronizar(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        
+        try:
+            from google_sheets import sync_practicantes_to_db, export_report_to_sheet
+            
+            await interaction.followup.send("🔄 Iniciando sincronización forzada...", ephemeral=True)
+            
+            # 1. Sincronizar practicantes y horas base
+            await sync_practicantes_to_db()
+            
+            # 2. Exportar reportes actualizados
+            await export_report_to_sheet()
+            
+            await interaction.followup.send("✅ Sincronización completada exitosamente.", ephemeral=True)
+            logging.info(f"Admin {interaction.user.display_name} forzó una sincronización manual.")
+            
+        except Exception as e:
+            logging.error(f"Error en sincronización forzada: {e}")
+            await interaction.followup.send(f"❌ Error durante la sincronización: {e}", ephemeral=True)
+
+
 async def setup(bot):
     await bot.add_cog(Admin(bot))
