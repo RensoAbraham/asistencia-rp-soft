@@ -6,7 +6,6 @@ from zoneinfo import ZoneInfo
 
 # Zona horaria de Perú
 LIMA_TZ = ZoneInfo("America/Lima")
-ES_DOMINGO = datetime.datetime.now(LIMA_TZ).weekday() == 6
 
 def format_timedelta(td):
     """Convierte un timedelta o time a string HH:MM:SS"""
@@ -110,10 +109,16 @@ async def canal_permitido(interaction: discord.Interaction) -> bool:
         # ID oficial del canal de asistencia
         canal_asistencia_id = 1457747478592884878
         
-        await interaction.response.send_message(
-            f"🚫 **Canal Incorrecto**\nEste comando solo está habilitado en el canal de asistencia.\n👉 Por favor, ve a <#{canal_asistencia_id}> para registrar tu asistencia.",
-            ephemeral=True
-        )
+        if interaction.response.is_done():
+            await interaction.followup.send(
+                f"🚫 **Canal Incorrecto**\nEste comando solo está habilitado en el canal de asistencia.\n👉 Por favor, ve a <#{canal_asistencia_id}> para registrar tu asistencia.",
+                ephemeral=True
+            )
+        else:
+            await interaction.response.send_message(
+                f"🚫 **Canal Incorrecto**\nEste comando solo está habilitado en el canal de asistencia.\n👉 Por favor, ve a <#{canal_asistencia_id}> para registrar tu asistencia.",
+                ephemeral=True
+            )
         return False
     return True
 

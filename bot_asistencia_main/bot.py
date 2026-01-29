@@ -10,7 +10,7 @@ import datetime
 from zoneinfo import ZoneInfo
 from aiohttp import web
 import database as db
-from utils import LIMA_TZ, format_timedelta, format_timedelta_total, ES_DOMINGO
+from utils import LIMA_TZ, format_timedelta, format_timedelta_total, es_domingo
 
 # Cargar variables de entorno
 load_dotenv()
@@ -283,7 +283,7 @@ async def setup_hook():
         
         ahora = datetime.datetime.now(LIMA_TZ)
         # El reporte se intenta enviar a partir de las 2:30 PM (14:30)
-        if ahora.hour < 14 or ES_DOMINGO():
+        if ahora.hour < 14 or es_domingo():
             return
 
         fecha_hoy = ahora.date()
