@@ -21,15 +21,23 @@ class Test(commands.GroupCog, name="test"):
     @app_commands.describe(
         accion="Entrada o Salida",
         id_discord="ID de Discord del practicante (opcional, por defecto tú)",
-        estado="Estado manual (Presente, Tardanza, etc.)"
+        estado="Estado manual (Presente, Tardanza, etc.)",
+        validar_dispositivo="Si es True, aplicará las reglas de Móvil/Invisible"
     )
     @app_commands.choices(accion=[
         app_commands.Choice(name="Entrada", value="entrada"),
         app_commands.Choice(name="Salida", value="salida")
     ])
-    async def test_asistencia(self, interaction: discord.Interaction, accion: str, id_discord: str = None, estado: str = "Presente"):
+    async def test_asistencia(self, interaction: discord.Interaction, accion: str, id_discord: str = None, estado: str = "Presente", validar_dispositivo: bool = False):
         await interaction.response.defer(ephemeral=True)
         
+        from utils import validar_dispositivo_pc
+        
+        # Si el admin quiere probar la restricción
+        if validar_dispositivo:
+            if not await validar_dispositivo_pc(interaction):
+                return
+
         target_id = int(id_discord) if id_discord else interaction.user.id
         ahora = datetime.now(LIMA_TZ)
         fecha_actual = ahora.date()

@@ -252,8 +252,8 @@ class Asistencia(commands.GroupCog, name="asistencia"):
     @app_commands.describe(dias="Cantidad de días a mostrar (1-15)")
     async def historial(self, interaction: discord.Interaction, dias: int = 7):
         await interaction.response.defer(ephemeral=True)
+        from utils import canal_permitido, obtener_practicante
         if not await canal_permitido(interaction):
-            logging.warning(f'Canal no permitido para el usuario {interaction.user.display_name}.')
             return
 
         discord_id = interaction.user.id
