@@ -260,9 +260,20 @@ async def setup_hook():
     await bot.load_extension('cogs.admin.commands')
     logging.info('...Admin cargada')
     
-    logging.info('Sincronizando comandos (tree.sync)...')
-    await bot.tree.sync()
-    logging.info('Comandos sincronizados.')
+    logging.info('Sincronizando comandos...')
+    
+    # Sincronización global
+    synced = await bot.tree.sync()
+    logging.info(f'✅ {len(synced)} comandos sincronizados globalmente.')
+    
+    # Imprimir qué comandos se cargaron para debug
+    cmds = [cmd.name for cmd in synced]
+    logging.info(f"Comandos cargados: {', '.join(cmds)}")
+
+    # Opcional: Forzar sincronización en el servidor específico para cambios instantáneos
+    # Reemplaza con tu ID de servidor si quieres que sea ultra rápido el cambio
+    # guild = discord.Object(id=1275906235060981951)
+    # await bot.tree.sync(guild=guild)
     
     # Iniciar sincronización con Google Sheets (si está configurada)
     from google_sheets import sync_practicantes_to_db, export_report_to_sheet
