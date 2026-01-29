@@ -243,6 +243,40 @@ class Admin(commands.GroupCog, name="admin"):
             logging.error(f"Error en sincronización forzada: {e}")
             await interaction.followup.send(f"❌ Error durante la sincronización: {e}", ephemeral=True)
 
+    @app_commands.command(name='eliminar_practicante', description="Elimina un practicante de la base de datos por su ID de Discord")
+    @app_commands.describe(id_discord="El ID de Discord del registro a eliminar")
+    async def eliminar_practicante(self, interaction: discord.Interaction, id_discord: str):
+        await interaction.response.defer(ephemeral=True)
+        
+        try:
+            # 1. Verificar si existe
+            query_check = "SELECT id, nombre_completo FROM practicante WHERE id_discord = %s"
+            practicante = await db.fetch_one(query_check, (id_discord,))
+            
+            if not practicante:
+                await interaction.followup.send(f"❌ No se encontró ningún practicante con el ID: `{id_discord}`", ephemeral=True)
+                return
+
+            # 2. Eliminar asistencias relacionadas (por integridad referencial)
+            query_del_asistencia = "DELETE FROM asistencia WHERE practicante_id = %s"
+            await db.execute_query(query_del_asistencia, (practicante['id'],))
+            
+            # 3. Eliminar recuperaciones (si existen)
+            query_del_recup = "DELETE FROM asistencia_recuperacion WHERE practicante_id = %s"
+            await db.execute_query(query_del_recup, (practicante['id'],))
+
+            # 4. Eliminar practicante
+            query_del_practicante = "DELETE FROM practicante WHERE id = %s"
+            await db.execute_query(query_del_practicante, (practicante['id'],))
+            
+            await interaction.followup.send(f"✅ Se ha eliminado a **{practicante['nombre_completo']}** (ID: `{id_discord}`) y todos sus registros de la base de datos.", ephemeral=True)
+            logging.info(f"Admin {interaction.user.display_name} eliminó permanentemente al practicante {practicante['nombre_completo']}")
+
+        except Exception as e:
+            logging.error(f"Error al eliminar practicante: {e}")
+            await interaction.followup.send(f"❌ Error al eliminar: {e}", ephemeral=True)
+
+
 
 async def setup(bot):
     await bot.add_cog(Admin(bot))
