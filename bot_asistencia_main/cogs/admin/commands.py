@@ -11,6 +11,7 @@ from utils import obtener_practicante, obtener_estado_asistencia, format_timedel
 
 LIMA_TZ = ZoneInfo("America/Lima")
 
+@app_commands.default_permissions(administrator=True)
 class Admin(commands.GroupCog, name="admin"):
     """Cog para comandos administrativos"""
 

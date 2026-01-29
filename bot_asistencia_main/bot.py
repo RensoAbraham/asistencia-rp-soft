@@ -254,8 +254,8 @@ async def setup_hook():
     
     # await bot.load_extension('cogs.faltas.commands') 
     
-    await bot.load_extension('cogs.recuperacion.commands')
-    logging.info('...Recuperación cargada')
+    await bot.load_extension('cogs.test.commands')
+    logging.info('...Módulo Test cargado')
     
     await bot.load_extension('cogs.admin.commands')
     logging.info('...Admin cargada')
