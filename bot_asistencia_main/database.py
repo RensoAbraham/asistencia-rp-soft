@@ -150,7 +150,15 @@ async def ensure_db_setup():
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     """)
 
-    # 6. Vista para Reporte Excel (Incluye Total: Horas Base + Horas Bot)
+    # 6. Tabla para rastrear reportes diarios enviados
+    await execute_query("""
+    CREATE TABLE IF NOT EXISTS reportes_enviados (
+        fecha DATE PRIMARY KEY,
+        enviado_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    """)
+
+    # 7. Vista para Reporte Excel (Incluye Total: Horas Base + Horas Bot)
     await execute_query("""
     CREATE OR REPLACE VIEW reporte_asistencia AS
     SELECT 

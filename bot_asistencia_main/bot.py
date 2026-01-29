@@ -9,9 +9,8 @@ import logging
 import datetime
 from zoneinfo import ZoneInfo
 from aiohttp import web
-
-# Zona horaria de Perú
-LIMA_TZ = ZoneInfo("America/Lima")
+import database as db
+from utils import LIMA_TZ, format_timedelta, format_timedelta_total, ES_DOMINGO
 
 # Cargar variables de entorno
 load_dotenv()
@@ -188,16 +187,89 @@ async def setup_hook():
     from google_sheets import sync_practicantes_to_db, export_report_to_sheet
     
     # Tarea de sincronización
-    @tasks.loop(hours=1)
+    @tasks.loop(minutes=30)
     async def sync_google_sheets_task():
         await bot.wait_until_ready()
         logging.info("↻ Iniciando sincronización periódica con Google Sheets...")
+        from google_sheets import sync_practicantes_to_db, export_report_to_sheet
         await sync_practicantes_to_db()
         await export_report_to_sheet()
 
-    # Iniciar la tarea
+    # Tarea de Reporte Diario Automático
+    @tasks.loop(minutes=15)
+    async def auto_reporte_diario_task():
+        await bot.wait_until_ready()
+        
+        ahora = datetime.datetime.now(LIMA_TZ)
+        # El reporte se intenta enviar a partir de las 2:30 PM (14:30)
+        if ahora.hour < 14 or ES_DOMINGO():
+            return
+
+        fecha_hoy = ahora.date()
+        
+        # 1. Verificar si ya se envió hoy
+        query_check = "SELECT 1 FROM reportes_enviados WHERE fecha = %s"
+        ya_enviado = await db.fetch_one(query_check, (fecha_hoy,))
+        if ya_enviado:
+            return
+
+        # 2. Verificar si hay salidas pendientes
+        # Buscamos registros de hoy donde haya entrada pero NO salida
+        query_pendientes = "SELECT COUNT(*) as count FROM asistencia WHERE fecha = %s AND hora_entrada IS NOT NULL AND hora_salida IS NULL"
+        pendientes = await db.fetch_one(query_pendientes, (fecha_hoy,))
+        
+        if pendientes and pendientes['count'] > 0:
+            logging.info(f"⏳ Reporte diario: {pendientes['count']} salidas pendientes. Postergando...")
+            return
+
+        # 3. Si no hay pendientes, generar y enviar reporte
+        canal_reportes_id = 1466480159488999576
+        canal = bot.get_channel(canal_reportes_id)
+        
+        if not canal:
+            logging.error(f"❌ No se encontró el canal de reportes {canal_reportes_id}")
+            return
+
+        logging.info("📊 Todos han salido. Enviando reporte diario automático...")
+        
+        query_asistencia = """
+        SELECT p.nombre_completo, a.hora_entrada, a.hora_salida, ea.estado
+        FROM practicante p
+        JOIN asistencia a ON p.id = a.practicante_id AND a.fecha = %s
+        JOIN estado_asistencia ea ON a.estado_id = ea.id
+        ORDER BY a.hora_entrada ASC
+        """
+        asistencias = await db.fetch_all(query_asistencia, (fecha_hoy,))
+
+        if not asistencias:
+            return
+
+        embed = discord.Embed(
+            title=f"📋 Reporte Diario de Asistencia - {fecha_hoy.strftime('%d/%m/%Y')}",
+            description="Todos los practicantes del turno han registrado su salida.",
+            color=discord.Color.gold(),
+            timestamp=ahora
+        )
+
+        lista_resumen = ""
+        for asis in asistencias:
+            entrada = format_timedelta(asis['hora_entrada'])
+            salida = format_timedelta(asis['hora_salida'])
+            lista_resumen += f"• **{asis['nombre_completo']}**: {entrada} - {salida} ({asis['estado']})\n"
+
+        embed.add_field(name="Resumen de hoy", value=lista_resumen or "Sin registros", inline=False)
+        embed.set_footer(text="Cierre de jornada automático")
+
+        await canal.send(content="🔔 <@615932763161362636>, el reporte diario ya está listo.", embed=embed)
+        
+        # 4. Marcar como enviado en la BD
+        await db.execute_query("INSERT INTO reportes_enviados (fecha) VALUES (%s)", (fecha_hoy,))
+        logging.info(f"✅ Reporte diario del {fecha_hoy} enviado correctamente.")
+
+    # Iniciar las tareas
     sync_google_sheets_task.start()
-    logging.info('Tarea de sincronización con Google Sheets iniciada.')
+    auto_reporte_diario_task.start()
+    logging.info('Tareas programadas iniciadas.')
 
     # Nota: Los cogs ahora están organizados en carpetas (asistencia/, faltas/, recuperacion/)
     logging.info('Iniciando tarea de envío de métricas...')

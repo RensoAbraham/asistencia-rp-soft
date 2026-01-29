@@ -17,7 +17,7 @@ class Admin(commands.GroupCog, name="admin"):
     def __init__(self, bot: commands.Bot):
         super().__init__()
         self.bot = bot
-        self.AUTHORIZED_USERS = [615932763161362636]  # Tu ID de admin
+        self.AUTHORIZED_USERS = [615932763161362636, 824692049084678144]  # Renso y Owner
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         """Verificar si el usuario tiene permisos"""

@@ -6,6 +6,7 @@ from zoneinfo import ZoneInfo
 
 # Zona horaria de Perú
 LIMA_TZ = ZoneInfo("America/Lima")
+ES_DOMINGO = datetime.datetime.now(LIMA_TZ).weekday() == 6
 
 def format_timedelta(td):
     """Convierte un timedelta o time a string HH:MM:SS"""
