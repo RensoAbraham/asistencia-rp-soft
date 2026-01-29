@@ -141,6 +141,49 @@ async def verificar_rol_permitido(interaction: discord.Interaction, roles_permit
         return False
     return True
 
+async def validar_dispositivo_pc(interaction: discord.Interaction) -> bool:
+    """
+    Verifica si el usuario está en PC/Web y no en modo Invisible.
+    Retorna True si es válido, False y envía mensaje si es inválido.
+    """
+    member = interaction.guild.get_member(interaction.user.id)
+    if not member:
+        return True # Si no podemos obtener el member, permitimos por seguridad
+        
+    # El estado 'offline' significa que está Invisible (o realmente desconectado, pero interactuando)
+    if member.status == discord.Status.offline:
+        await interaction.followup.send(
+            "⚠️ **Estado Invisible detectado**\n"
+            "Por políticas de la empresa, debes estar en modo **Conectado**, **Inactivo** o **No Molestar** "
+            "para que el sistema pueda verificar que estás usando una PC.",
+            ephemeral=True
+        )
+        return False
+
+    # Verificar si está en móvil
+    # member.is_on_mobile es confiable si los intents están activos
+    if member.is_on_mobile:
+        await interaction.followup.send(
+            "🚫 **Acceso restringido: Solo PC**\n"
+            "Se ha detectado que estás intentando registrar asistencia desde un dispositivo móvil. "
+            "Por seguridad y normativa interna, las marcas de asistencia deben realizarse únicamente desde una computadora.",
+            ephemeral=True
+        )
+        return False
+
+    # Verificación adicional por plataformas específicas
+    # member.mobile_status, member.desktop_status, member.web_status
+    if member.mobile_status != discord.Status.offline:
+        await interaction.followup.send(
+            "🚫 **Dispositivo Móvil detectado**\n"
+            "Tu cuenta de Discord registra una sesión activa en móvil. Por favor, cierra la sesión en tu celular "
+            "o asegúrate de estar operando exclusivamente desde tu PC para marcar asistencia.",
+            ephemeral=True
+        )
+        return False
+
+    return True
+
 async def verificar_recuperacion(practicante_id, fecha_actual):
     """Verifica si ya existe una recuperación para el practicante en la fecha dada"""
     query_recuperacion = "SELECT id FROM asistencia_recuperacion WHERE practicante_id = %s AND fecha_recuperacion = %s"

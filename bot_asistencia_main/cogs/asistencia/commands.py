@@ -3,7 +3,7 @@
 import discord
 from discord import app_commands, Embed, Color
 from discord.ext import commands
-from utils import obtener_practicante, verificar_entrada, obtener_estado_asistencia, canal_permitido
+from utils import obtener_practicante, verificar_entrada, obtener_estado_asistencia, canal_permitido, validar_dispositivo_pc
 from datetime import datetime, time, timedelta
 import database as db
 import logging
@@ -34,6 +34,10 @@ class Asistencia(commands.GroupCog, name="asistencia"):
         
         if not await canal_permitido(interaction):
             logging.warning(f'Canal no permitido para el usuario {interaction.user.display_name}.')
+            return
+
+        # Nueva validación: Solo PC y no Invisible
+        if not await validar_dispositivo_pc(interaction):
             return
 
         discord_id = interaction.user.id
@@ -107,6 +111,10 @@ class Asistencia(commands.GroupCog, name="asistencia"):
         
         if not await canal_permitido(interaction):
             logging.warning(f'Canal no permitido para el usuario {interaction.user.display_name}.')
+            return
+
+        # Nueva validación: Solo PC y no Invisible
+        if not await validar_dispositivo_pc(interaction):
             return
         
         discord_id = interaction.user.id

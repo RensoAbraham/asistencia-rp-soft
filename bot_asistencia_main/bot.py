@@ -52,8 +52,89 @@ intents = discord.Intents.default()
 intents.messages = True
 intents.message_content = True
 intents.members = True
+intents.presences = True
 
 bot = commands.Bot(command_prefix='/', intents=intents)
+
+# Diccionario para rastrear infracciones de dispositivo móvil
+# {user_id: {'timestamp_aviso': datetime, 'mensaje_aviso_id': int}}
+infracciones_movil = {}
+
+@bot.event
+async def on_voice_state_update(member, before, after):
+    """
+    Monitorea cuando los usuarios entran a canales de voz o cambian de estado.
+    Si se detecta en móvil con asistencia activa, se inicia el proceso de aviso.
+    """
+    if member.bot:
+        return
+
+    # Solo nos importa si entró a un canal (after.channel no es None)
+    if after.channel is None:
+        # Si salió del canal, limpiamos su registro de infracción si existía
+        if member.id in infracciones_movil:
+            del infracciones_movil[member.id]
+        return
+
+    # Verificar si tiene asistencia activa hoy
+    ahora = datetime.datetime.now(LIMA_TZ)
+    query_asistencia = """
+        SELECT a.id FROM asistencia a 
+        JOIN practicante p ON a.practicante_id = p.id 
+        WHERE p.id_discord = %s AND a.fecha = %s AND a.hora_salida IS NULL
+    """
+    asistencia_activa = await db.fetch_one(query_asistencia, (member.id, ahora.date()))
+
+    if not asistencia_activa:
+        return
+
+    # Verificar si está en móvil
+    es_movil = member.is_on_mobile or member.mobile_status != discord.Status.offline
+    
+    if es_movil:
+        # Si ya lo teníamos registrado, verificamos si pasaron los 10 min
+        if member.id in infracciones_movil:
+            info = infracciones_movil[member.id]
+            lapso = ahora - info['timestamp_aviso']
+            
+            if lapso.total_seconds() >= 600: # 10 minutos
+                logging.warning(f"🚨 CIERRE AUTOMÁTICO: {member.display_name} superó los 10 min en móvil.")
+                
+                # Cerrar la sesión en la DB
+                query_update = "UPDATE asistencia SET hora_salida = %s, observaciones = %s WHERE id = %s"
+                obs = f"Sesión cerrada automáticamente: Uso de dispositivo móvil detectado por más de 10 min."
+                await db.execute_query(query_update, (ahora.time(), obs, asistencia_activa['id']))
+                
+                # Avisar en el canal
+                canal_reportes = bot.get_channel(1466480159488999576)
+                if canal_reportes:
+                    await canal_reportes.send(
+                        f"⛔ **Sesión Cerrada Automáticamente**\n"
+                        f"El practicante {member.mention} ha sido desconectado del sistema de asistencia por permanecer "
+                        f"más de 10 minutos conectado desde un dispositivo móvil durante su jornada laboral."
+                    )
+                
+                # Limpiar registro
+                del infracciones_movil[member.id]
+        else:
+            # Primer aviso
+            canal_asistencia = bot.get_channel(1457747478592884878) # Canal Principal de Asistencia
+            if canal_asistencia:
+                msg = await canal_asistencia.send(
+                    f"⚠️ **Aviso de Dispositivo:** Hola {member.mention}, el sistema detectó una conexión desde móvil. "
+                    f"Por favor, recuerda que la asistencia debe ser desde una PC. Tienes **10 minutos** para conectarte "
+                    f"desde tu computadora para que tu asistencia siga contando normalmente. ¡Gracias! 🙌"
+                )
+                infracciones_movil[member.id] = {
+                    'timestamp_aviso': ahora,
+                    'mensaje_aviso_id': msg.id
+                }
+                logging.info(f"⚠️ Aviso enviado a {member.display_name} por conexión móvil.")
+    else:
+        # Si ya no está en móvil y estaba registrado, lo limpiamos (Normalizado)
+        if member.id in infracciones_movil:
+            logging.info(f"✅ Situación normalizada para {member.display_name} (Volvió a PC).")
+            del infracciones_movil[member.id]
 
 # Diccionario de canales permitidos por servidor
 bot.canales_permitidos = {
