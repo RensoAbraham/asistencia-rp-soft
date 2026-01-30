@@ -300,9 +300,45 @@ async def export_report_to_sheet():
         except gspread.WorksheetNotFound:
             worksheet_af = spreadsheet.add_worksheet(title="Reporte Anti-Farming", rows="100", cols="6")
 
+        # --- NUEVO: Leer validaciones antes de limpiar ---
+        try:
+            current_af_data = worksheet_af.get_all_values()
+            if len(current_af_data) > 1:
+                headers_af_current = [h.lower() for h in current_af_data[0]]
+                # Encontrar índices
+                try:
+                    idx_id_af = next(i for i, h in enumerate(headers_af_current) if 'id' in h or 'discord' in h)
+                    idx_fecha_af = next(i for i, h in enumerate(headers_af_current) if 'fecha' in h)
+                    idx_val_af = next(i for i, h in enumerate(headers_af_current) if 'validado' in h)
+                    
+                    for row_af in current_af_data[1:]:
+                        if len(row_af) > idx_val_af and row_af[idx_val_af].strip().upper() == "OK":
+                            discord_id_val = row_af[idx_id_af].strip()
+                            fecha_val = row_af[idx_fecha_af].strip()
+                            
+                            # Limpiar ID
+                            discord_id_val = "".join(filter(str.isdigit, discord_id_val))
+                            
+                            if discord_id_val and fecha_val:
+                                logging.info(f"💎 Validando horas extra para ID {discord_id_val} el {fecha_val}...")
+                                query_validate = """
+                                UPDATE asistencia a 
+                                JOIN practicante p ON a.practicante_id = p.id 
+                                SET a.hora_salida = ADDTIME(a.hora_salida, a.horas_extra), 
+                                    a.horas_extra = '00:00:00',
+                                    a.observaciones = CONCAT(IFNULL(a.observaciones, ''), '\n[Sistema] Horas validadas mediante Google Sheets.')
+                                WHERE p.id_discord = %s AND a.fecha = %s AND a.horas_extra > '00:00:00'
+                                """
+                                await db.execute_query(query_validate, (discord_id_val, fecha_val))
+                except StopIteration:
+                    logging.warning("⚠️ No se pudieron encontrar las columnas necesarias en Reporte Anti-Farming para validar.")
+        except Exception as e:
+            logging.error(f"⚠️ Error al intentar leer validaciones de Anti-Farming: {e}")
+
         # Consulta de incidentes (donde horas_extra > 0)
         query_af = """
         SELECT 
+            p.id_discord,
             p.nombre_completo,
             a.fecha,
             a.horas_extra,
@@ -314,11 +350,12 @@ async def export_report_to_sheet():
         """
         data_af = await db.fetch_all(query_af)
         
-        headers_af = ["Nombre Completo", "Fecha", "Horas Extra (No Contadas)", "Salida Automática", "Validado (X/OK)"]
+        headers_af = ["ID Discord", "Nombre Completo", "Fecha", "Horas Extra (No Contadas)", "Salida Automática", "Validado (X/OK)"]
         rows_af = [headers_af]
         
         for row in data_af:
             rows_af.append([
+                str(row['id_discord']),
                 row['nombre_completo'],
                 str(row['fecha']),
                 str(row['horas_extra']),
@@ -328,7 +365,7 @@ async def export_report_to_sheet():
 
         worksheet_af.clear()
         worksheet_af.update('A1', rows_af)
-        logging.info(f"🚨 Reporte Anti-Farming actualizado: {len(data_af)} incidentes.")
+        logging.info(f"🚨 Reporte Anti-Farming actualizado: {len(data_af)} incidentes pendientes.")
 
         
     except Exception as e:
