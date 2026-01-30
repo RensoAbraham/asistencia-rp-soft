@@ -146,44 +146,6 @@ async def verificar_rol_permitido(interaction: discord.Interaction, roles_permit
         return False
     return True
 
-async def validar_dispositivo_pc(interaction: discord.Interaction) -> bool:
-    """
-    Verifica si el usuario está en PC/Web y no en modo Invisible.
-    Retorna True si es válido, False y envía mensaje si es inválido.
-    """
-    import logging
-    member = interaction.guild.get_member(interaction.user.id)
-    if not member:
-        return True
-        
-    logging.info(f"📱 Validando dispositivo para {member.display_name}: Status={member.status}, Mobile={member.mobile_status}, Desktop={member.desktop_status}, Web={member.web_status}")
-
-    # El estado 'offline' significa que está Invisible
-    if member.status == discord.Status.offline:
-        await interaction.followup.send(
-            "⚠️ **Estado Invisible detectado**\n"
-            "Por políticas de la empresa, debes estar en modo **Conectado**, **Inactivo** o **No Molestar** "
-            "para que el sistema pueda verificar que estás usando una PC.",
-            ephemeral=True
-        )
-        return False
-
-    # PRIORIDAD: Si tiene una sesión de Desktop o Web activa, PERMITIR aunque el móvil esté en background
-    if member.desktop_status != discord.Status.offline or member.web_status != discord.Status.offline:
-        logging.info(f"✅ {member.display_name} detectado en PC (Desktop/Web). Acceso concedido.")
-        return True
-
-    # Si NO se detecta PC y SÍ se detecta móvil
-    if member.is_on_mobile or member.mobile_status != discord.Status.offline:
-        await interaction.followup.send(
-            "🚫 **Acceso restringido: Solo PC**\n"
-            "Se ha detectado que estás operando exclusivamente desde un dispositivo móvil. "
-            "Por seguridad y normativa interna, las marcas de asistencia deben realizarse únicamente desde una computadora.",
-            ephemeral=True
-        )
-        return False
-
-    return True
 
 async def verificar_recuperacion(practicante_id, fecha_actual):
     """Verifica si ya existe una recuperación para el practicante en la fecha dada"""
