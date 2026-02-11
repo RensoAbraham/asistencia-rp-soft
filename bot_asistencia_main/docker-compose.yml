@@ -1,16 +1,16 @@
 version: '3.8'
 
 services:
-  # Base de datos MySQL
+  # Base de datos MySQL local
   mysql:
     image: mysql:8.0
     container_name: bot_asistencia_mysql
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_password_segura}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-RootPassword2024!MuySegura}
       MYSQL_DATABASE: ${DB_NAME:-asistencia_rp_soft}
       MYSQL_USER: ${DB_USER:-bot_user}
-      MYSQL_PASSWORD: ${DB_PASSWORD:-bot_password_segura}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-BotPassword2024!Segura}
     volumes:
       - mysql_data:/var/lib/mysql
     ports:
@@ -18,7 +18,7 @@ services:
     networks:
       - bot_network
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-root_password_segura}"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p$${MYSQL_ROOT_PASSWORD:-RootPassword2024!MuySegura}"]
       timeout: 20s
       retries: 10
       interval: 10s

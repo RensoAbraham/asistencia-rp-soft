@@ -9,3 +9,4 @@ openpyxl
 tzdata
 gspread==6.1.4
 google-auth==2.36.0
+cryptography
