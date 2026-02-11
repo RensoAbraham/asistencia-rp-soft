@@ -5,6 +5,7 @@
 Esta guía te ayudará a migrar tu base de datos de TiDB Cloud a MySQL local en tu VPS de Hetzner.
 
 **Ventajas:**
+
 - ✅ Gratis (sin costos adicionales)
 - ✅ Más rápido (latencia casi 0)
 - ✅ Más seguro (datos en tu servidor)
@@ -203,6 +204,7 @@ sudo mysql_secure_installation
 ```
 
 Responder:
+
 - **VALIDATE PASSWORD COMPONENT**: No (o Yes si quieres)
 - **Remove anonymous users**: Yes
 - **Disallow root login remotely**: Yes
@@ -277,14 +279,14 @@ mysql -ubot_user -p asistencia_rp_soft < backup_tidb.sql
 
 ## 📊 Comparación de Opciones
 
-| Característica | MySQL con Docker | MySQL Instalado |
-|----------------|------------------|-----------------|
-| **Facilidad** | ⭐⭐⭐⭐⭐ Muy fácil | ⭐⭐⭐ Moderado |
-| **Aislamiento** | ✅ Contenedor separado | ❌ Instalado en sistema |
-| **Backups** | ✅ Volúmenes Docker | ⚠️ Manual |
-| **Portabilidad** | ✅ Fácil mover | ❌ Difícil |
-| **Recursos** | ⚠️ Usa más RAM | ✅ Más eficiente |
-| **Mantenimiento** | ✅ Fácil actualizar | ⚠️ Más complejo |
+| Característica         | MySQL con Docker       | MySQL Instalado         |
+| ----------------------- | ---------------------- | ----------------------- |
+| **Facilidad**     | ⭐⭐⭐⭐⭐ Muy fácil  | ⭐⭐⭐ Moderado         |
+| **Aislamiento**   | ✅ Contenedor separado | ❌ Instalado en sistema |
+| **Backups**       | ✅ Volúmenes Docker   | ⚠️ Manual             |
+| **Portabilidad**  | ✅ Fácil mover        | ❌ Difícil             |
+| **Recursos**      | ⚠️ Usa más RAM      | ✅ Más eficiente       |
+| **Mantenimiento** | ✅ Fácil actualizar   | ⚠️ Más complejo      |
 
 **Recomendación:** **MySQL con Docker** (Opción 1)
 
@@ -300,6 +302,7 @@ nano ~/backup_bot.sh
 ```
 
 **Contenido:**
+
 ```bash
 #!/bin/bash
 
@@ -345,6 +348,7 @@ crontab -e
 ## 🔄 Proceso de Migración Completo (Paso a Paso)
 
 ### 1. Preparación
+
 ```bash
 # Conectar al VPS
 ssh root@tu_ip_vps
@@ -357,6 +361,7 @@ cp .env .env.backup
 ```
 
 ### 2. Exportar datos de TiDB (si tienes datos)
+
 ```bash
 # Desde tu PC o VPS
 mysqldump -h gateway01.us-west-2.prod.aws.tidbcloud.com \
@@ -371,12 +376,14 @@ scp backup_tidb.sql root@tu_ip_vps:~/bot_asistencia/
 ```
 
 ### 3. Detener bot actual
+
 ```bash
 cd ~/bot_asistencia
 docker-compose down
 ```
 
 ### 4. Actualizar archivos
+
 ```bash
 # Actualizar docker-compose.yml (usar Opción 1 de arriba)
 nano docker-compose.yml
@@ -389,6 +396,7 @@ nano database.py
 ```
 
 ### 5. Iniciar servicios
+
 ```bash
 # Iniciar
 docker-compose up -d
@@ -398,6 +406,7 @@ docker-compose logs -f
 ```
 
 ### 6. Importar datos
+
 ```bash
 # Esperar a que MySQL esté listo
 sleep 30
@@ -407,6 +416,7 @@ docker exec -i bot_asistencia_mysql mysql -ubot_user -ptu_contraseña asistencia
 ```
 
 ### 7. Verificar
+
 ```bash
 # Ver logs del bot
 docker-compose logs bot-asistencia
