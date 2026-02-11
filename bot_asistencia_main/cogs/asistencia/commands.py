@@ -46,10 +46,18 @@ class Asistencia(commands.GroupCog, name="asistencia"):
 
         fecha_actual = datetime.now(LIMA_TZ).date()
         hora_actual = datetime.now(LIMA_TZ).time()
-        hora_inicio_permitida = time(7, 0)
+        hora_inicio_permitida = time(8, 0) # 8:00 AM
         hora_fin_permitida = time(14, 0)
 
-        # Verificar si la hora actual está dentro del rango permitido
+        # Verificar si es antes de las 8:00 AM
+        if hora_actual < hora_inicio_permitida:
+             await interaction.followup.send(
+                f"Hola {nombre_usuario}, La hora de entrada no es la correcta, marca asistencia a las 8:00 am.",
+                ephemeral=True
+            )
+             return
+
+        # Verificar si la hora actual está dentro del rango permitido (o pasado las 14:00)
         if not (hora_inicio_permitida <= hora_actual <= hora_fin_permitida):
             await interaction.followup.send(
                 f"{nombre_usuario}, no puedes registrar tu entrada fuera del horario permitido.",
@@ -199,6 +207,7 @@ class Asistencia(commands.GroupCog, name="asistencia"):
     @app_commands.command(name='estado', description="Consultar tu estado de asistencia del día")
     async def estado(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
+        from utils import LIMA_TZ
         if not await canal_permitido(interaction):
             logging.warning(f'Canal no permitido para el usuario {interaction.user.display_name}.')
             return
@@ -212,7 +221,7 @@ class Asistencia(commands.GroupCog, name="asistencia"):
             return
             
         # Consultar estado de asistencia
-        fecha_actual = datetime.now().date()
+        fecha_actual = datetime.now(LIMA_TZ).date()
         query_estado = """
         SELECT a.hora_entrada, a.hora_salida, ea.estado
         FROM asistencia a
@@ -233,8 +242,14 @@ class Asistencia(commands.GroupCog, name="asistencia"):
             embed.add_field(name="🕒 Hora de Entrada", value=f"{resultado['hora_entrada'] or 'No registrada'}", inline=False)
             embed.add_field(name="⏳ Hora de Salida", value=f"{resultado['hora_salida'] or 'No registrada'}", inline=False)
         else:
-            # Si no tiene registro, mostrar mensaje de falta injustificada
-            embed.add_field(name="❌ Estado de Asistencia", value="Falta injustificada", inline=False)
+            # Si no tiene registro, lógica diferenciada por hora
+            hora_actual = datetime.now(LIMA_TZ).time()
+            hora_espera_limite = time(9, 0)
+            
+            if hora_actual < hora_espera_limite:
+                 embed.add_field(name="🟡 Estado de Asistencia", value="Esperando al inicio de Jornada", inline=False)
+            else:
+                 embed.add_field(name="❌ Estado de Asistencia", value="Falta injustificada", inline=False)
 
         embed.set_footer(text="Si tienes dudas, contacta con el administrador.")
 

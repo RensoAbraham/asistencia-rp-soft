@@ -33,16 +33,9 @@ class Settings:
     
     # Configuración de servidores (canales permitidos)
     CANALES_PERMITIDOS: Dict[int, List[int]] = {
-        1389959112556679239: [
-            1390353417079361607,
-            1390013888791183370,
-            1395093712832565339,
-            1400200650402431007,
-            1404466917002969128,
-            1412152264969162969,
-            1415770590975102986,
-        ],  # Servidor RP Soft
-        1405602519635202048: [1406544076534190110],  # Servidor Laboratorios
+        1389959112556679239: [1469777811924582602],  # Servidor RP Soft
+        1405602519635202048: [1468308523539628208, 1406544076534190110],  # Servidor Laboratorios
+
     }
     
     # Configuración de roles para recuperación

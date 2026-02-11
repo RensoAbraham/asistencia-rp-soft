@@ -18,6 +18,12 @@ TOKEN = os.getenv('DISCORD_TOKEN')
 BACKEND_API_KEY = os.getenv('BACKEND_API_KEY')
 BACKEND_URL = os.getenv('BACKEND_URL')
 
+# Eliminar handlers previos para evitar logs duplicados
+root_logger = logging.getLogger()
+if root_logger.handlers:
+    for handler in root_logger.handlers:
+        root_logger.removeHandler(handler)
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s %(levelname)-8s %(name)s %(message)s',
@@ -60,14 +66,11 @@ bot = commands.Bot(command_prefix='/', intents=intents)
 bot.canales_permitidos = {
     # Servidor RP Soft (Producción)
     1389959112556679239: [
-        1390353417079361607, 1390013888791183370, 1395093712832565339, 1400200650402431007, 1404466917002969128, 1412152264969162969, 1415770590975102986,
-        1457747478592884878, # Canal Principal de Asistencia
-        1457747701038059643  # Canal de Recuperación
+        1390353417079361607, # NO IMPLEMENTADO POR FAVOR CAMBIAR EL ID DE CANAL
     ],
     # Servidor Laboratorios (Pruebas)
     1405602519635202048: [
-        1406544076534190110,
-        1457802290093228093 # Canal Pruebas Actual
+        1468308523539628208, # SERVIDOR LABORATORIOS CANAL │﹕📚・a-s-i-s-t-e-n-c-i-a
     ]
 }
 
@@ -192,14 +195,14 @@ async def setup_hook():
 
     # Opcional: Forzar sincronización en el servidor específico para cambios instantáneos
     # Reemplaza con tu ID de servidor si quieres que sea ultra rápido el cambio
-    # guild = discord.Object(id=1275906235060981951)
+    # guild = discord.Object(id=1405602519635202048)
     # await bot.tree.sync(guild=guild)
     
     # Iniciar sincronización con Google Sheets (si está configurada)
     from google_sheets import sync_practicantes_to_db, export_report_to_sheet
     
     # Tarea de sincronización
-    @tasks.loop(minutes=30)
+    @tasks.loop(minutes=10)
     async def sync_google_sheets_task():
         await bot.wait_until_ready()
         logging.info("↻ Iniciando sincronización periódica con Google Sheets...")
@@ -235,7 +238,7 @@ async def setup_hook():
             return
 
         # 3. Si no hay pendientes, generar y enviar reporte
-        canal_reportes_id = 1466480159488999576
+        canal_reportes_id = 1468317880553574420
         canal = bot.get_channel(canal_reportes_id)
         
         if not canal:
