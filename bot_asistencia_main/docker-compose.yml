@@ -1,11 +1,42 @@
+version: '3.8'
+
 services:
+  # Base de datos MySQL
+  mysql:
+    image: mysql:8.0
+    container_name: bot_asistencia_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_password_segura}
+      MYSQL_DATABASE: ${DB_NAME:-asistencia_rp_soft}
+      MYSQL_USER: ${DB_USER:-bot_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-bot_password_segura}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    networks:
+      - bot_network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-root_password_segura}"]
+      timeout: 20s
+      retries: 10
+      interval: 10s
+
+  # Bot de Discord
   bot-asistencia:
     build: .
-    restart: always
+    container_name: bot_asistencia_main
+    restart: unless-stopped
     env_file:
       - .env
     volumes:
       - ./credentials.json:/app/credentials.json
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - bot_network
     deploy:
       resources:
         limits:
@@ -13,3 +44,10 @@ services:
           memory: 500M
     environment:
       - PYTHONUNBUFFERED=1
+
+volumes:
+  mysql_data:
+
+networks:
+  bot_network:
+    driver: bridge

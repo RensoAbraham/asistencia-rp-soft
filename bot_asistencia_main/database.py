@@ -26,7 +26,7 @@ DB_CONFIG = {
     "user": os.getenv("DB_USER"),
     "password": os.getenv("DB_PASSWORD"),
     "db": os.getenv("DB_NAME"),
-    "port": int(os.getenv("DB_PORT", 4000)), # TiDB usa 4000 por defecto
+    "port": int(os.getenv("DB_PORT", 3306)), # MySQL usa 3306, TiDB usa 4000
     "autocommit": False,
     "ssl": get_ssl_context()
 }

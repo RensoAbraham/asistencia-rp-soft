@@ -1,0 +1,60 @@
+# Archivos de entorno (NUNCA SUBIR)
+.env
+.env.local
+.env.production
+.env.development
+
+# Credenciales de Google (NUNCA SUBIR)
+credentials.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Database backups
+*.sql
+backup_*.sql
+
+# Docker
+docker-compose.override.yml
+
+# Temporary files
+*.tmp
+*.bak
