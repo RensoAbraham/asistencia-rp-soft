@@ -66,7 +66,13 @@ async def obtener_practicante(interaction, discord_id):
     
     # Si no se encuentra el practicante, informar al usuario
     if not practicante:
-        msg = f"{nombre_usuario}, no estás registrado como practicante en este servidor. Por favor, completa el formulario de registro."
+        from bot.config.constants import LINK_FORMULARIO_REGISTRO
+        
+        msg = (
+            f"🚫 {nombre_usuario}, no estás registrado en el sistema.\n"
+            f"📝 **Regístrate aquí:** [Formulario de Registro]({LINK_FORMULARIO_REGISTRO})\n"
+            "Una vez registrado, intenta marcar asistencia nuevamente."
+        )
         if interaction.response.is_done():
             await interaction.followup.send(msg, ephemeral=True)
         else:
@@ -92,7 +98,8 @@ async def canal_permitido(interaction: discord.Interaction) -> bool:
     # Lista global de canales oficiales (Asistencia, Recuperación, Tests)
     # Estos siempre están permitidos sin importar el servidor
     canales_oficiales = [
-        1457747478592884878, # Canal Principal Asistencia
+        1468308523539628208, # Canal Principal Asistencia (Nuevo)
+        1457747478592884878, # Canal Principal Asistencia (Viejo)
         1457747701038059643, # Canal Recuperación
         1457802290093228093  # Canal de Tests
     ]
@@ -107,7 +114,7 @@ async def canal_permitido(interaction: discord.Interaction) -> bool:
         import logging
         logging.warning(f"🚫 Canal denegado en Servidor {servidor_id} (Canal ID: {canal_id})")
         # ID oficial del canal de asistencia
-        canal_asistencia_id = 1457747478592884878
+        canal_asistencia_id = 1468308523539628208
         
         if interaction.response.is_done():
             await interaction.followup.send(

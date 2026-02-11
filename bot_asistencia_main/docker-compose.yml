@@ -6,5 +6,10 @@ services:
       - .env
     volumes:
       - ./credentials.json:/app/credentials.json
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 500M
     environment:
       - PYTHONUNBUFFERED=1

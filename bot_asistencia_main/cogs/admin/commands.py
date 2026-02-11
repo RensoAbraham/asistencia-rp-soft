@@ -3,7 +3,7 @@
 import discord
 from discord import app_commands, Embed, Color
 from discord.ext import commands
-from datetime import datetime
+from datetime import datetime, time
 from zoneinfo import ZoneInfo
 import database as db
 import logging
@@ -18,7 +18,7 @@ class Admin(commands.GroupCog, name="admin"):
     def __init__(self, bot: commands.Bot):
         super().__init__()
         self.bot = bot
-        self.AUTHORIZED_USERS = [615932763161362636, 824692049084678144]  # Renso y Owner
+        self.AUTHORIZED_USERS = [615932763161362636, 824692049084678144, 1395195164779347988]  # Renso y Wilber & Jordy
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         """Verificar si el usuario tiene permisos"""
@@ -35,6 +35,10 @@ class Admin(commands.GroupCog, name="admin"):
     async def reporte_hoy(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         fecha_actual = datetime.now(LIMA_TZ).date()
+        hora_actual = datetime.now(LIMA_TZ).time()
+        
+        # Horario de corte para considerar falta vs pendiente
+        HORA_CORTE_FALTA = time(14, 30)
 
         # Consulta para obtener a todos los practicantes y sus marcas de hoy
         query = """
@@ -62,27 +66,46 @@ class Admin(commands.GroupCog, name="admin"):
 
         # Construir la lista de estados
         lista_practicantes = ""
+        first_field = True
+        
         for res in resultados:
             nombre = res['nombre_completo']
             entrada = format_timedelta(res['hora_entrada'])
             salida = format_timedelta(res['hora_salida'])
-            estado = res['estado'] or "Falta"
+            
+            # Lógica de Estado
+            if res['estado']:
+                estado = res['estado']
+            else:
+                # Si no tiene estado registrado
+                if hora_actual < HORA_CORTE_FALTA:
+                    estado = "Pendiente"
+                else:
+                    estado = "Falta"
             
             emoji = "✅" if res['hora_entrada'] else "❌"
-            if res['hora_entrada']: presentes += 1
-            else: faltan += 1
+            
+            if res['hora_entrada']: 
+                presentes += 1
+            else: 
+                if estado == "Pendiente":
+                    emoji = "🟡"
+                faltan += 1
 
             linea = f"{emoji} **{nombre}** | {entrada} - {salida} | *{estado}*\n"
             
-            # Evitar exceder el límite de caracteres de un solo field
+            # Evitar exceder el límite de caracteres de un solo field (1024 chars)
             if len(lista_practicantes) + len(linea) > 1000:
-                embed.add_field(name="Practicantes", value=lista_practicantes, inline=False)
+                name_field = "Practicantes" if first_field else "..."
+                embed.add_field(name=name_field, value=lista_practicantes, inline=False)
                 lista_practicantes = linea
+                first_field = False
             else:
                 lista_practicantes += linea
 
         if lista_practicantes:
-            embed.add_field(name="Practicantes", value=lista_practicantes, inline=False)
+            name_field = "Practicantes" if first_field else "..."
+            embed.add_field(name=name_field, value=lista_practicantes, inline=False)
 
         embed.add_field(name="Resumen", value=f"👥 Total: {total} | ✅ Presentes: {presentes} | ❌ Faltan: {faltan}", inline=False)
         embed.set_footer(text="Panel Administrativo RP Soft")
@@ -132,6 +155,12 @@ class Admin(commands.GroupCog, name="admin"):
                 return
             
             estado_id = await obtener_estado_asistencia(estado or 'Presente')
+            
+            # Validar que el estado existe en la base de datos
+            if estado_id is None:
+                await interaction.followup.send(f"❌ El estado '{estado or 'Presente'}' no existe en la base de datos. Estados válidos: Presente, Tardanza, Falta Injustificada, Falta Recuperada, Permiso.", ephemeral=True)
+                return
+            
             query_insert = """
             INSERT INTO asistencia (practicante_id, fecha, hora_entrada, hora_salida, estado_id)
             VALUES (%s, %s, %s, %s, %s)
@@ -150,6 +179,9 @@ class Admin(commands.GroupCog, name="admin"):
                 params.append(hora_salida)
             if estado:
                 estado_id = await obtener_estado_asistencia(estado)
+                if estado_id is None:
+                    await interaction.followup.send(f"❌ El estado '{estado}' no existe en la base de datos. Estados válidos: Presente, Tardanza, Falta Injustificada, Falta Recuperada, Permiso.", ephemeral=True)
+                    return
                 updates.append("estado_id = %s")
                 params.append(estado_id)
             
@@ -181,46 +213,48 @@ class Admin(commands.GroupCog, name="admin"):
         """
         resultados = await db.fetch_all(query)
 
-        embed = Embed(
-            title="📈 Resumen General de Horas",
-            description="Acumulado total de horas trabajadas (Base + Bot).",
-            color=Color.green()
-        )
-
-        for res in resultados:
-            bot_str = format_timedelta_total(res['horas_bot_raw'])
-            base_str = format_timedelta_total(res['horas_base'])
-            
-            # Cálculo de Total (sumando bot y base)
-            try:
-                # Bot
-                h1, m1, s1 = map(int, bot_str.split(':'))
-                # Base
-                h2, m2, s2 = map(int, base_str.split(':'))
-                
-                total_h = h1 + h2
-                total_m = m1 + m2
-                total_s = s1 + s2
-                
-                # Ajustar desbordamientos
-                if total_s >= 60:
-                    total_m += total_s // 60
-                    total_s = total_s % 60
-                if total_m >= 60:
-                    total_h += total_m // 60
-                    total_m = total_m % 60
-                
-                total_final = f"{total_h:02d}:{total_m:02d}:{total_s:02d}"
-            except:
-                total_final = "Error"
-
-            embed.add_field(
-                name=res['nombre_completo'],
-                value=f"✅ Total: **{total_final}**\n*(Bot: {bot_str} | Base: {base_str})*",
-                inline=True
+        # Paginación: Discord permite max 25 fields por Embed.
+        CHUNK_SIZE = 25
+        chunks = [resultados[i:i + CHUNK_SIZE] for i in range(0, len(resultados), CHUNK_SIZE)]
+        
+        for i, chunk in enumerate(chunks):
+            embed = Embed(
+                title=f"📈 Resumen General de Horas (Parte {i+1}/{len(chunks)})",
+                description="Acumulado total de horas trabajadas (Base + Bot).",
+                color=Color.green()
             )
 
-        await interaction.followup.send(embed=embed, ephemeral=True)
+            for res in chunk:
+                bot_str = format_timedelta_total(res['horas_bot_raw'])
+                base_str = format_timedelta_total(res['horas_base'])
+                
+                # Cálculo de Total (sumando bot y base)
+                try:
+                    h1, m1, s1 = map(int, bot_str.split(':'))
+                    h2, m2, s2 = map(int, base_str.split(':'))
+                    
+                    total_h = h1 + h2
+                    total_m = m1 + m2
+                    total_s = s1 + s2
+                    
+                    if total_s >= 60:
+                        total_m += total_s // 60
+                        total_s %= 60
+                    if total_m >= 60:
+                        total_h += total_m // 60
+                        total_m %= 60
+                    
+                    total_final = f"{total_h:02d}:{total_m:02d}:{total_s:02d}"
+                except:
+                    total_final = "Error"
+
+                embed.add_field(
+                    name=res['nombre_completo'],
+                    value=f"✅ Total: **{total_final}**\n*(Bot: {bot_str} | Base: {base_str})*",
+                    inline=True
+                )
+            
+            await interaction.followup.send(embed=embed, ephemeral=True)
 
     @app_commands.command(name='sincronizar', description="Forzar sincronización inmediata con Google Sheets")
     async def sincronizar(self, interaction: discord.Interaction):
