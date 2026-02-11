@@ -158,6 +158,36 @@ async def ensure_db_setup():
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     """)
 
+    # 7. Tabla de configuración por servidor
+    await execute_query("""
+    CREATE TABLE IF NOT EXISTS configuracion_servidor (
+        guild_id BIGINT PRIMARY KEY,
+        canal_asistencia_id BIGINT NULL,
+        canal_reportes_id BIGINT NULL,
+        usuarios_mencion_reporte TEXT NULL, -- IDs separados por comas
+        mensaje_bienvenida TEXT NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    """)
+
+    # 8. Tabla de administradores (Equipo de Desarrollo)
+    await execute_query("""
+    CREATE TABLE IF NOT EXISTS bot_admins (
+        discord_id BIGINT PRIMARY KEY,
+        nombre_referencia VARCHAR(255),
+        rol VARCHAR(100) DEFAULT 'Developer'
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    """)
+
+    # Insertar equipo inicial si no existe
+    query_admin = "INSERT IGNORE INTO bot_admins (discord_id, nombre_referencia, rol) VALUES (%s, %s, %s)"
+    admins = [
+        (615932763161362636, 'Renso Mamani', 'Dev Principal'),
+        (824692049084678144, 'Wilber Peralta', 'Product Owner'),
+        (1395195164779347988, 'Jordy', 'Developer')
+    ]
+    for admin_data in admins:
+        await execute_query(query_admin, admin_data)
+
     # 7. Vista para Reporte Excel (Incluye Total: Horas Base + Horas Bot)
     await execute_query("""
     CREATE OR REPLACE VIEW reporte_asistencia AS

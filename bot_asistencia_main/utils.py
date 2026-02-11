@@ -7,6 +7,12 @@ from zoneinfo import ZoneInfo
 # Zona horaria de Perú
 LIMA_TZ = ZoneInfo("America/Lima")
 
+async def es_admin_bot(discord_id: int) -> bool:
+    """Verifica si un usuario es administrador/developer del bot en la BD"""
+    query = "SELECT 1 FROM bot_admins WHERE discord_id = %s"
+    resultado = await db.fetch_one(query, (discord_id,))
+    return resultado is not None
+
 def format_timedelta(td):
     """Convierte un timedelta o time a string HH:MM:SS"""
     if td is None:
@@ -90,44 +96,52 @@ async def obtener_estado_asistencia(estado_nombre):
     estado = await db.fetch_one(query_estado, (estado_nombre,))
     return estado['id'] if estado else None
 
+async def get_server_config(guild_id: int):
+    """Obtiene la configuración dinámica de un servidor desde la BD"""
+    query = "SELECT * FROM configuracion_servidor WHERE guild_id = %s"
+    return await db.fetch_one(query, (guild_id,))
+
 async def canal_permitido(interaction: discord.Interaction) -> bool:
     servidor_id = interaction.guild.id
-    bot = interaction.client
     canal_id = interaction.channel.id
     
-    # Lista global de canales oficiales (Asistencia, Recuperación, Tests)
-    # Estos siempre están permitidos sin importar el servidor
+    # 1. Lista global de canales de emergencia/oficiales (Siempre permitidos)
     canales_oficiales = [
         1468308523539628208, # Canal Principal Asistencia (Nuevo)
         1457747478592884878, # Canal Principal Asistencia (Viejo)
-        1457747701038059643, # Canal Recuperación
         1457802290093228093  # Canal de Tests
     ]
-    
     if canal_id in canales_oficiales:
         return True
 
-    canales_permitidos = bot.canales_permitidos.get(servidor_id, [])
+    # 2. Consultar BD para configuración personalizada del servidor
+    config = await get_server_config(servidor_id)
+    canal_configurado = config['canal_asistencia_id'] if config else None
+    
+    if canal_configurado:
+        if canal_id == canal_configurado:
+            return True
+    else:
+        # 3. Fallback a configuración estática de bot.py (si existe)
+        bot = interaction.client
+        canales_estaticos = bot.canales_permitidos.get(servidor_id, [])
+        if canal_id in canales_estaticos:
+            return True
 
-    # Verificar si el canal es permitido según configuración de bot.py
-    if canal_id not in canales_permitidos:
-        import logging
-        logging.warning(f"🚫 Canal denegado en Servidor {servidor_id} (Canal ID: {canal_id})")
-        # ID oficial del canal de asistencia
-        canal_asistencia_id = 1468308523539628208
-        
-        if interaction.response.is_done():
-            await interaction.followup.send(
-                f"🚫 **Canal Incorrecto**\nEste comando solo está habilitado en el canal de asistencia.\n👉 Por favor, ve a <#{canal_asistencia_id}> para registrar tu asistencia.",
-                ephemeral=True
-            )
-        else:
-            await interaction.response.send_message(
-                f"🚫 **Canal Incorrecto**\nEste comando solo está habilitado en el canal de asistencia.\n👉 Por favor, ve a <#{canal_asistencia_id}> para registrar tu asistencia.",
-                ephemeral=True
-            )
-        return False
-    return True
+    # Si llegamos aquí, el canal no está permitido
+    import logging
+    logging.warning(f"🚫 Canal denegado en Servidor {servidor_id} (Canal ID: {canal_id})")
+    
+    # Mensaje informativo
+    objetivo = f"<#{canal_configurado}>" if canal_configurado else "el canal oficial"
+    msg = f"🚫 **Canal Incorrecto**\nEste comando solo está habilitado en el canal de asistencia.\n👉 Por favor, ve a {objetivo} para registrar tu asistencia."
+    
+    if interaction.response.is_done():
+        await interaction.followup.send(msg, ephemeral=True)
+    else:
+        await interaction.response.send_message(msg, ephemeral=True)
+    return False
+
 
 async def verificar_rol_permitido(interaction: discord.Interaction, roles_permitidos: list, usar_followup: bool = False) -> bool:
     """

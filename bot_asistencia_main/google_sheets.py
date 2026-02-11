@@ -264,6 +264,13 @@ async def export_report_to_sheet():
             
         # 4. Limpiar y actualizar Detallado
         worksheet_det.clear()
+        
+        # Resetear formato de toda la hoja (A1:Z500) para evitar colores/estilos residuales
+        worksheet_det.format("A1:Z1000", {
+            "backgroundColor": {"red": 1.0, "green": 1.0, "blue": 1.0},
+            "textFormat": {"bold": False, "foregroundColor": {"red": 0.0, "green": 0.0, "blue": 0.0}, "fontSize": 10}
+        })
+
         worksheet_det.update('A1', rows_det)
 
         # Aplicar formato a los encabezados de fecha (celeste claro y negrita)

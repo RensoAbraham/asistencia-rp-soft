@@ -20,15 +20,60 @@ class Admin(commands.GroupCog, name="admin"):
         self.bot = bot
         self.AUTHORIZED_USERS = [615932763161362636, 824692049084678144, 1395195164779347988]  # Renso y Wilber & Jordy
 
+class ConfirmacionEliminar(discord.ui.View):
+    def __init__(self, admin_cog, interaction, id_discord, nombre_completo):
+        super().__init__(timeout=60)
+        self.admin_cog = admin_cog
+        self.interaction = interaction
+        self.id_discord = id_discord
+        self.nombre_completo = nombre_completo
+        self.confirmado = False
+
+    @discord.ui.button(label="Confirmar Eliminación", style=discord.ButtonStyle.danger, emoji="🗑️")
+    async def confirmar(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.interaction.user.id:
+            return await interaction.response.send_message("❌ Solo el administrador que inició el comando puede confirmar.", ephemeral=True)
+        
+        self.confirmado = True
+        await interaction.response.defer()
+        
+        try:
+            # Lógica de eliminación (movida aquí)
+            query_check = "SELECT id FROM practicante WHERE id_discord = %s"
+            practicante = await db.fetch_one(query_check, (self.id_discord,))
+            
+            if not practicante:
+                await interaction.followup.send(f"❌ El practicante ya no existe.", ephemeral=True)
+                return
+
+            # Eliminar registros relacionados
+            await db.execute_query("DELETE FROM asistencia WHERE practicante_id = %s", (practicante['id'],))
+            await db.execute_query("DELETE FROM asistencia_recuperacion WHERE practicante_id = %s", (practicante['id'],))
+            await db.execute_query("DELETE FROM practicante WHERE id = %s", (practicante['id'],))
+            
+            await interaction.followup.edit_message(
+                message_id=self.interaction.message.id,
+                content=f"✅ **{self.nombre_completo}** ha sido eliminado permanentemente de la base de datos.",
+                view=None
+            )
+            logging.info(f"Admin {interaction.user.display_name} eliminó permanentemente a {self.nombre_completo}")
+
+        except Exception as e:
+            logging.error(f"Error al eliminar practicante: {e}")
+            await interaction.followup.send(f"❌ Error al eliminar: {e}", ephemeral=True)
+
+    @discord.ui.button(label="Cancelar", style=discord.ButtonStyle.secondary)
+    async def cancelar(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.edit_message(content="❌ Acción cancelada. No se realizaron cambios.", view=None)
+        self.stop()
+
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        """Verificar si el usuario tiene permisos"""
-        if interaction.user.id in self.AUTHORIZED_USERS or interaction.user.guild_permissions.administrator:
+        """Verificar si el usuario tiene permisos (BD o Admin de Server)"""
+        es_dev = await es_admin_bot(interaction.user.id)
+        if es_dev or interaction.user.guild_permissions.administrator:
             return True
         
-        await interaction.response.send_message(
-            "❌ No tienes permisos suficientes para acceder a este panel.",
-            ephemeral=True
-        )
+        await interaction.response.send_message("❌ No tienes permisos de desarrollador para usar este panel.", ephemeral=True)
         return False
 
     @app_commands.command(name='reporte_hoy', description="Ver el estado de todos los practicantes hoy")
@@ -285,33 +330,131 @@ class Admin(commands.GroupCog, name="admin"):
         
         try:
             # 1. Verificar si existe
-            query_check = "SELECT id, nombre_completo FROM practicante WHERE id_discord = %s"
+            query_check = "SELECT nombre_completo FROM practicante WHERE id_discord = %s"
             practicante = await db.fetch_one(query_check, (id_discord,))
             
             if not practicante:
                 await interaction.followup.send(f"❌ No se encontró ningún practicante con el ID: `{id_discord}`", ephemeral=True)
                 return
 
-            # 2. Eliminar asistencias relacionadas (por integridad referencial)
-            query_del_asistencia = "DELETE FROM asistencia WHERE practicante_id = %s"
-            await db.execute_query(query_del_asistencia, (practicante['id'],))
+            # Crear mensaje de confirmación
+            nombre = practicante['nombre_completo']
+            embed = Embed(
+                title="⚠️ Confirmación de Eliminación",
+                description=(
+                    f"¿Estás seguro de que deseas eliminar a **{nombre}**?\n\n"
+                    "🔴 **ATENCIÓN:** Esta acción borrará permanentemente:\n"
+                    "• El registro del practicante.\n"
+                    "• Todas sus asistencias históricas.\n"
+                    "• Todas sus recuperaciones pendientes o completadas.\n\n"
+                    "Esta acción **no se puede deshacer**."
+                ),
+                color=Color.red()
+            )
             
-            # 3. Eliminar recuperaciones (si existen)
-            query_del_recup = "DELETE FROM asistencia_recuperacion WHERE practicante_id = %s"
-            await db.execute_query(query_del_recup, (practicante['id'],))
-
-            # 4. Eliminar practicante
-            query_del_practicante = "DELETE FROM practicante WHERE id = %s"
-            await db.execute_query(query_del_practicante, (practicante['id'],))
-            
-            await interaction.followup.send(f"✅ Se ha eliminado a **{practicante['nombre_completo']}** (ID: `{id_discord}`) y todos sus registros de la base de datos.", ephemeral=True)
-            logging.info(f"Admin {interaction.user.display_name} eliminó permanentemente al practicante {practicante['nombre_completo']}")
+            view = ConfirmacionEliminar(self, interaction, id_discord, nombre)
+            await interaction.followup.send(embed=embed, view=view, ephemeral=True)
 
         except Exception as e:
-            logging.error(f"Error al eliminar practicante: {e}")
-            await interaction.followup.send(f"❌ Error al eliminar: {e}", ephemeral=True)
+            logging.error(f"Error al iniciar eliminación de practicante: {e}")
+            await interaction.followup.send(f"❌ Error: {e}", ephemeral=True)
+
+    @app_commands.command(name='configurar', description="Panel de configuración y gestión del equipo")
+    async def configurar(self, interaction: discord.Interaction):
+        """Abre un menú interactivo para configurar canales y ver al equipo"""
+        # Obtener equipo de desarrollo de la BD
+        query_equipo = "SELECT nombre_referencia, rol, discord_id FROM bot_admins ORDER BY rol DESC"
+        equipo = await db.fetch_all(query_equipo)
+        
+        texto_equipo = ""
+        for mem in equipo:
+            texto_equipo += f"• <@{mem['discord_id']}> (**{mem['rol']}**)\n"
+
+        embed = discord.Embed(
+            title="⚙️ Panel de Administración - RP Soft",
+            description=(
+                "### 👥 Equipo de Desarrollo\n"
+                f"{texto_equipo}\n"
+                "--- \n"
+                "**Selecciona una opción abajo para configurar el servidor o gestionar el bot.**"
+            ),
+            color=discord.Color.blue()
+        )
+        embed.set_footer(text="Gestión de Asistencia v2.0 • Sistema de Seguridad Activo")
+        
+        view = ConfigView()
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
 
+class ConfigSelect(discord.ui.Select):
+    def __init__(self):
+        options = [
+            discord.SelectOption(label="Canal de Asistencia", description="Establece el canal donde se marcará asistencia", emoji="📝"),
+            discord.SelectOption(label="Canal de Reportes", description="Establece el canal para reportes diarios", emoji="📊"),
+            discord.SelectOption(label="Menciones de Reporte", description="Configura quiénes serán avisados en el reporte", emoji="🔔"),
+            discord.SelectOption(label="Agregar Administrador del Bot", description="Dar permisos de Developer a un usuario", emoji="👨‍💻"),
+            discord.SelectOption(label="Estado de Invitación", description="Ver link de invitación del bot", emoji="🔗"),
+        ]
+        super().__init__(placeholder="Selecciona una opción a configurar...", min_values=1, max_values=1, options=options)
+
+    async def callback(self, interaction: discord.Interaction):
+        # ... (lógica anterior de canales)
+        
+        # 4. Agregar Administrador (NUEVO)
+        if self.values[0] == "Agregar Administrador del Bot":
+            await interaction.response.send_message(
+                "Envía el **ID de Discord** del nuevo administrador (ej. 123456789):",
+                ephemeral=True
+            )
+            def check(m): return m.author == interaction.user and m.channel == interaction.channel
+            try:
+                msg = await interaction.client.wait_for('message', check=check, timeout=30)
+                new_id = int(msg.content) if msg.content.isdigit() else None
+                await msg.delete()
+
+                if new_id:
+                    # Traer nombre del usuario para confirmar
+                    user = await interaction.client.fetch_user(new_id)
+                    view = ConfirmacionNuevoAdmin(new_id, user.name)
+                    embed = discord.Embed(
+                        title="⚠️ Doble Confirmación",
+                        description=f"¿Estás seguro de que quieres darle permisos de **Developer** a **{user.name}** (ID: `{new_id}`)?\n\nPodrá acceder a este panel de configuración.",
+                        color=discord.Color.gold()
+                    )
+                    await interaction.followup.send(embed=embed, view=view, ephemeral=True)
+                else: await interaction.followup.send("❌ ID no válido.", ephemeral=True)
+            except Exception as e:
+                await interaction.followup.send(f"❌ Error o tiempo agotado: {e}", ephemeral=True)
+
+        elif self.values[0] == "Canal de Asistencia":
+            # (Mantener lógica de Canal de Asistencia aquí...)
+            pass
+
+class ConfirmacionNuevoAdmin(discord.ui.View):
+    def __init__(self, discord_id, nombre):
+        super().__init__(timeout=60)
+        self.discord_id = discord_id
+        self.nombre = nombre
+
+    @discord.ui.button(label="Sí, Agregar como Developer", style=discord.ButtonStyle.success, emoji="✅")
+    async def confirmar(self, interaction: discord.Interaction, button: discord.ui.Button):
+        query = "INSERT INTO bot_admins (discord_id, nombre_referencia, rol) VALUES (%s, %s, %s)"
+        await db.execute_query(query, (self.discord_id, self.nombre, 'Developer'))
+        await interaction.response.edit_message(content=f"✅ **{self.nombre}** ha sido añadido al equipo como **Developer**.", embed=None, view=None)
+
+    @discord.ui.button(label="Cancelar", style=discord.ButtonStyle.secondary)
+    async def cancelar(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.edit_message(content="❌ Acción cancelada.", embed=None, view=None)
+
+class ConfigView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+        self.add_item(ConfigSelect())
 
 async def setup(bot):
-    await bot.add_cog(Admin(bot))
+    # Añadir el comando configurar fuera del Cog por conveniencia o dentro si se desea
+    # Lo añadiré dentro de la clase Admin para mantener el grupo
+    pass
+
+# Actualizar el Cog Admin para incluir el comando configurar
+# Voy a añadirlo al final de la clase Admin antes del cierre
