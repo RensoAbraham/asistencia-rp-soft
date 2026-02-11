@@ -90,6 +90,103 @@ class Admin(commands.GroupCog, name="admin"):
         view = ConfirmacionEliminar(interaction, id_discord, p['nombre_completo'])
         await interaction.followup.send(embed=embed, view=view, ephemeral=True)
 
+    @app_commands.command(name='editar_asistencia', description="Edita o crea un registro de asistencia manualmente")
+    @app_commands.describe(
+        usuario="El practicante a editar",
+        fecha="Fecha en formato YYYY-MM-DD (ej. 2024-03-20)",
+        entrada="Hora de entrada HH:MM (ej. 08:00)",
+        salida="Hora de salida HH:MM (ej. 14:00)",
+        estado="Estado: Presente, Tardanza, Falta Injustificada, Falta Recuperada, Permiso"
+    )
+    async def editar_asistencia(
+        self, 
+        interaction: discord.Interaction, 
+        usuario: discord.User,
+        fecha: Optional[str] = None,
+        entrada: Optional[str] = None,
+        salida: Optional[str] = None,
+        estado: Optional[str] = None
+    ):
+        await interaction.response.defer(ephemeral=True)
+        
+        try:
+            # 1. Obtener ID del practicante
+            query_p = "SELECT id FROM practicante WHERE id_discord = %s"
+            p = await db.fetch_one(query_p, (usuario.id,))
+            if not p:
+                return await interaction.followup.send(f"❌ {usuario.mention} no está registrado.", ephemeral=True)
+            
+            p_id = p['id']
+            fecha_final = fecha if fecha else datetime.now(LIMA_TZ).strftime('%Y-%m-%d')
+            
+            # 2. Obtener estado_id si se proporcionó
+            estado_id = None
+            if estado:
+                estado_id = await obtener_estado_asistencia(estado)
+                if not estado_id:
+                    return await interaction.followup.send(f"❌ Estado '{estado}' no válido.", ephemeral=True)
+
+            # 3. Comprobar si ya existe el registro
+            query_check = "SELECT id FROM asistencia WHERE practicante_id = %s AND fecha = %s"
+            existente = await db.fetch_one(query_check, (p_id, fecha_final))
+
+            if existente:
+                # Actualizar (crear lista de campos a actualizar)
+                updates = []
+                params = []
+                if entrada: updates.append("hora_entrada = %s"); params.append(entrada)
+                if salida: updates.append("hora_salida = %s"); params.append(salida)
+                if estado_id: updates.append("estado_id = %s"); params.append(estado_id)
+                
+                if not updates:
+                    return await interaction.followup.send("⚠️ No se proporcionaron campos para actualizar.", ephemeral=True)
+                
+                query_upd = f"UPDATE asistencia SET {', '.join(updates)} WHERE id = %s"
+                params.append(existente['id'])
+                await db.execute_query(query_upd, tuple(params))
+                await interaction.followup.send(f"✅ Asistencia de {usuario.mention} para el {fecha_final} actualizada.", ephemeral=True)
+            else:
+                # Crear nuevo registro (requiere estado o asumimos Presente)
+                if not estado_id: estado_id = await obtener_estado_asistencia('Presente')
+                query_ins = "INSERT INTO asistencia (practicante_id, fecha, hora_entrada, hora_salida, estado_id) VALUES (%s, %s, %s, %s, %s)"
+                await db.execute_query(query_ins, (p_id, fecha_final, entrada, salida, estado_id))
+                await interaction.followup.send(f"✅ Nuevo registro creado para {usuario.mention} el {fecha_final}.", ephemeral=True)
+
+        except Exception as e:
+            await interaction.followup.send(f"❌ Error al editar asistencia: {e}", ephemeral=True)
+
+    @app_commands.command(name='resumen_general', description="Muestra el resumen de horas de todos los practicantes")
+    async def resumen_general(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        query = "SELECT * FROM resumen_practicantes ORDER BY nombre_completo ASC"
+        res = await db.fetch_all(query)
+        
+        if not res: return await interaction.followup.send("No hay datos.", ephemeral=True)
+        
+        embed = Embed(title="📋 Resumen General de Horas", color=Color.green())
+        for r in res:
+            prev = format_timedelta_total(r['horas_base'])
+            bot = format_timedelta_total(r['horas_bot'])
+            total = format_timedelta_total(r['total_acumulado'])
+            embed.add_field(
+                name=r['nombre_completo'], 
+                value=f"Base: `{prev}` | Bot: `{bot}`\n**Total: `{total}`**", 
+                inline=False
+            )
+            
+        await interaction.followup.send(embed=embed, ephemeral=True)
+
+    @app_commands.command(name='sincronizar', description="Fuerza la sincronización con Google Sheets")
+    async def sincronizar(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        from google_sheets import sync_practicantes_to_db, export_report_to_sheet
+        try:
+            await sync_practicantes_to_db()
+            await export_report_to_sheet()
+            await interaction.followup.send("✅ Sincronización con Google Sheets completada.", ephemeral=True)
+        except Exception as e:
+            await interaction.followup.send(f"❌ Error: {e}", ephemeral=True)
+
     @app_commands.command(name='agregar_equipo', description="Agrega a un miembro al equipo de desarrollo")
     async def agregar_equipo(self, interaction: discord.Interaction, usuario: discord.User, rol: str = "Developer"):
         await interaction.response.defer(ephemeral=True)
