@@ -3,6 +3,7 @@
 import discord
 from discord import app_commands, Embed, Color
 from discord.ext import commands
+from typing import Optional
 from datetime import datetime, time
 from zoneinfo import ZoneInfo
 import database as db
@@ -48,7 +49,7 @@ class Admin(commands.GroupCog, name="admin"):
     def __init__(self, bot: commands.Bot):
         super().__init__()
         self.bot = bot
-        self.AUTHORIZED_USERS = [615932763161362636, 824692049084678144]
+        self.AUTHORIZED_USERS = [615932763161362636, 824692049084678144] # Renso - Wilber
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user.id in self.AUTHORIZED_USERS: return True
