@@ -7,7 +7,8 @@ from datetime import datetime, time
 from zoneinfo import ZoneInfo
 import database as db
 import logging
-from utils import obtener_practicante, obtener_estado_asistencia, format_timedelta, format_timedelta_total
+import utils
+from utils import obtener_practicante, obtener_estado_asistencia, format_timedelta, format_timedelta_total, es_admin_bot
 
 LIMA_TZ = ZoneInfo("America/Lima")
 
@@ -18,7 +19,27 @@ class Admin(commands.GroupCog, name="admin"):
     def __init__(self, bot: commands.Bot):
         super().__init__()
         self.bot = bot
-        self.AUTHORIZED_USERS = [615932763161362636, 824692049084678144, 1395195164779347988]  # Renso y Wilber & Jordy
+        self.AUTHORIZED_USERS = [615932763161362636, 824692049084678144]  # Renso - Wilber
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        """Verificar si el usuario tiene permisos (Respaldo -> BD -> Admin de Server)"""
+        # 1. Respaldo por ID
+        if interaction.user.id in self.AUTHORIZED_USERS:
+            return True
+            
+        # 2. Base de datos
+        try:
+            if await es_admin_bot(interaction.user.id):
+                return True
+        except:
+            pass
+
+        # 3. Permisos de servidor
+        if interaction.user.guild_permissions.administrator:
+            return True
+        
+        await interaction.response.send_message("❌ No tienes permisos suficientes para acceder a este panel.", ephemeral=True)
+        return False
 
 class ConfirmacionEliminar(discord.ui.View):
     def __init__(self, admin_cog, interaction, id_discord, nombre_completo):
@@ -67,14 +88,6 @@ class ConfirmacionEliminar(discord.ui.View):
         await interaction.response.edit_message(content="❌ Acción cancelada. No se realizaron cambios.", view=None)
         self.stop()
 
-    async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        """Verificar si el usuario tiene permisos (BD o Admin de Server)"""
-        es_dev = await es_admin_bot(interaction.user.id)
-        if es_dev or interaction.user.guild_permissions.administrator:
-            return True
-        
-        await interaction.response.send_message("❌ No tienes permisos de desarrollador para usar este panel.", ephemeral=True)
-        return False
 
     @app_commands.command(name='reporte_hoy', description="Ver el estado de todos los practicantes hoy")
     async def reporte_hoy(self, interaction: discord.Interaction):
