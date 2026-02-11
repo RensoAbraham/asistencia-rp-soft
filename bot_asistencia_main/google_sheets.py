@@ -41,6 +41,16 @@ def format_duration(td_str):
         logging.warning(f"⚠️ Error formateando duración '{td_str}': {e}")
         return td_str
 
+def get_spanish_date(date_obj):
+    """Retorna la fecha formateada en español."""
+    days = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
+    months = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
+    
+    day_name = days[date_obj.weekday()]
+    month_name = months[date_obj.month - 1]
+    
+    return f"{day_name} {date_obj.day} {month_name} {date_obj.year}"
+
 def get_practicantes_from_sheet():
     """
     Lee la lista de practicantes desde Google Sheets.
@@ -228,11 +238,21 @@ async def export_report_to_sheet():
             worksheet_det = spreadsheet.add_worksheet(title="Reporte Detallado", rows="1000", cols="10")
         
         # 3. Formatear datos para gspread (Detallado)
-        # Eliminamos "Total Acumulado" por requerimiento del usuario
         headers_det = ["Fecha", "Nombre Completo", "Entrada", "Salida", "Horas Sesión", "Estado"]
         rows_det = [headers_det]
         
+        last_date = None
+        header_positions = [] # Para almacenar índices de filas de encabezado
+
         for row in data:
+            current_date = row['Fecha']
+            if current_date != last_date:
+                # Insertar fila de encabezado de fecha
+                date_str = get_spanish_date(current_date)
+                rows_det.append([date_str, "", "", "", "", ""])
+                header_positions.append(len(rows_det)) # 1-indexed para Sheets
+                last_date = current_date
+
             rows_det.append([
                 str(row['Fecha']),
                 row.get('Nombre_Completo', 'N/A'),
@@ -245,6 +265,21 @@ async def export_report_to_sheet():
         # 4. Limpiar y actualizar Detallado
         worksheet_det.clear()
         worksheet_det.update('A1', rows_det)
+
+        # Aplicar formato a los encabezados de fecha (celeste claro y negrita)
+        if header_positions:
+            for pos in header_positions:
+                range_str = f"A{pos}:F{pos}"
+                worksheet_det.format(range_str, {
+                    "backgroundColor": {"red": 0.85, "green": 0.92, "blue": 1.0},
+                    "textFormat": {"bold": True, "fontSize": 11}
+                })
+            
+        # Formato para el encabezado principal (A1:F1)
+        worksheet_det.format("A1:F1", {
+            "backgroundColor": {"red": 0.2, "green": 0.2, "blue": 0.2},
+            "textFormat": {"foregroundColor": {"red": 1.0, "green": 1.0, "blue": 1.0}, "bold": True}
+        })
 
         # ---------------------------------------------------------
         # 5. Generar Hoja de "Resumen General" (Acumulado por alumno)

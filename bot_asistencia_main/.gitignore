@@ -14,7 +14,7 @@ __pycache__/
 *.so
 .Python
 build/
-develop-eggs/
+develop-eggs/h
 dist/
 downloads/
 eggs/

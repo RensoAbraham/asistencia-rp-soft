@@ -8,8 +8,7 @@ from datetime import datetime, time, timedelta
 import database as db
 import logging
 
-# from .modals import SalidaAnticipadaModal
-
+from bot.config.constants import HORARIO_ENTRADA_INICIO, HORARIO_ENTRADA_FIN, HORA_LIMITE_TARDANZA
 
 class Asistencia(commands.GroupCog, name="asistencia"):
     """Cog para gestionar comandos de asistencia"""
@@ -46,19 +45,17 @@ class Asistencia(commands.GroupCog, name="asistencia"):
 
         fecha_actual = datetime.now(LIMA_TZ).date()
         hora_actual = datetime.now(LIMA_TZ).time()
-        hora_inicio_permitida = time(8, 0) # 8:00 AM
-        hora_fin_permitida = time(14, 0)
-
-        # Verificar si es antes de las 8:00 AM
-        if hora_actual < hora_inicio_permitida:
+        
+        # Verificar si es antes de la hora permitida
+        if hora_actual < HORARIO_ENTRADA_INICIO:
              await interaction.followup.send(
-                f"Hola {nombre_usuario}, La hora de entrada no es la correcta, marca asistencia a las 8:00 am.",
+                f"Hola {nombre_usuario}, La hora de entrada no es la correcta, marca asistencia desde las {HORARIO_ENTRADA_INICIO.strftime('%H:%M')} AM.",
                 ephemeral=True
             )
              return
 
         # Verificar si la hora actual está dentro del rango permitido (o pasado las 14:00)
-        if not (hora_inicio_permitida <= hora_actual <= hora_fin_permitida):
+        if not (HORARIO_ENTRADA_INICIO <= hora_actual <= HORARIO_ENTRADA_FIN):
             await interaction.followup.send(
                 f"{nombre_usuario}, no puedes registrar tu entrada fuera del horario permitido.",
                 ephemeral=True
@@ -75,10 +72,8 @@ class Asistencia(commands.GroupCog, name="asistencia"):
             )
             return
 
-        hora_limite_tardanza = time(8, 20, 59)
-        
         # Determinar estado de asistencia
-        if hora_actual > hora_limite_tardanza:
+        if hora_actual > HORA_LIMITE_TARDANZA:
             estado_id = await obtener_estado_asistencia('Tardanza')
             mensaje = f"{nombre_usuario}, se ha registrado tu entrada a las {hora_actual.strftime('%H:%M')} con tardanza."
         else:

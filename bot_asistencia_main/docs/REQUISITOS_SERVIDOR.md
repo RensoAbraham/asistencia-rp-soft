@@ -316,30 +316,35 @@ chmod +x ~/verificar_requisitos.sh
 Marca cada item al completarlo:
 
 ### Software Base
-- [ ] Ubuntu 22.04 LTS instalado
-- [ ] Sistema actualizado (`apt update && apt upgrade`)
-- [ ] Docker instalado y funcionando
-- [ ] Docker Compose instalado
-- [ ] Git instalado
-- [ ] Curl y Wget instalados
-- [ ] Nano instalado
+
+- [X] Ubuntu 22.04 LTS instalado
+- [X] Sistema actualizado (`apt update && apt upgrade`)
+- [X] Docker instalado y funcionando
+- [X] Docker Compose instalado
+- [X] Git instalado
+- [X] Curl y Wget instalados
+- [X] Nano instalado
 
 ### Seguridad
-- [ ] UFW instalado y configurado
-- [ ] Puerto 22 (SSH) permitido
-- [ ] Puertos 80 y 443 permitidos
-- [ ] Fail2Ban instalado
+
+- [X] UFW instalado y configurado
+- [X] Puerto 22 (SSH) permitido
+- [X] Puertos 80 y 443 permitidos
+- [X] Fail2Ban instalado
 
 ### Base de Datos (según necesidad)
+
 - [ ] MySQL instalado (si se usa)
 - [ ] PostgreSQL instalado (si se usa)
 
 ### Estructura
+
 - [ ] Directorio ~/proyectos creado
 - [ ] Directorio ~/backups creado
 - [ ] Directorio ~/scripts creado
 
 ### Verificación
+
 - [ ] Script de verificación ejecutado
 - [ ] Todos los servicios corriendo
 - [ ] Sin errores en los logs
@@ -349,26 +354,31 @@ Marca cada item al completarlo:
 ## 🔧 Comandos Útiles de Mantenimiento
 
 ### Ver servicios corriendo
+
 ```bash
 sudo systemctl list-units --type=service --state=running
 ```
 
 ### Ver uso de disco
+
 ```bash
 df -h
 ```
 
 ### Ver uso de memoria
+
 ```bash
 free -h
 ```
 
 ### Ver procesos
+
 ```bash
 htop
 ```
 
 ### Limpiar espacio
+
 ```bash
 # Limpiar paquetes no usados
 sudo apt autoremove -y
@@ -382,24 +392,26 @@ docker system prune -a --volumes
 
 ## 📊 Recursos Mínimos Recomendados
 
-| Recurso | Mínimo | Recomendado |
-|---------|--------|-------------|
-| **CPU** | 1 core | 2 cores |
-| **RAM** | 1 GB | 2 GB |
-| **Disco** | 20 GB | 40 GB |
-| **Ancho de banda** | 1 TB/mes | Ilimitado |
+| Recurso                  | Mínimo  | Recomendado |
+| ------------------------ | -------- | ----------- |
+| **CPU**            | 1 core   | 2 cores     |
+| **RAM**            | 1 GB     | 2 GB        |
+| **Disco**          | 20 GB    | 40 GB       |
+| **Ancho de banda** | 1 TB/mes | Ilimitado   |
 
 ---
 
 ## 🆘 Troubleshooting
 
 ### Docker no inicia
+
 ```bash
 sudo systemctl status docker
 sudo systemctl restart docker
 ```
 
 ### Sin espacio en disco
+
 ```bash
 # Ver qué ocupa más espacio
 du -sh /* | sort -h
@@ -409,6 +421,7 @@ sudo journalctl --vacuum-time=7d
 ```
 
 ### Firewall bloqueando conexiones
+
 ```bash
 # Ver reglas
 sudo ufw status numbered

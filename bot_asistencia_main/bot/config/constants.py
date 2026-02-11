@@ -7,9 +7,10 @@ from datetime import time
 from typing import Set
 
 # Horarios de entrada
-HORARIO_ENTRADA_INICIO = time(8, 0)      # 8:00 AM
+HORARIO_ENTRADA_INICIO = time(7, 50)      # 7:50 AM
 HORARIO_ENTRADA_FIN = time(14, 0)        # 2:00 PM
-HORA_LIMITE_TARDANZA = time(8, 20, 59)   # 8:20:59 AM
+HORARIO_ENTRADA_TOLERANCIA = time(8, 10, 59) # 8:10:59 AM
+HORA_LIMITE_TARDANZA = time(8, 10, 59)   # 8:10:59 AM
 HORARIO_SALIDA_MINIMA = time(14, 30)     # 2:30 PM
 
 # Horarios de recuperación
