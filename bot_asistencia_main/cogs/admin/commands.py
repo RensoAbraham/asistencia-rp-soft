@@ -197,6 +197,7 @@ class Admin(commands.GroupCog, name="admin"):
 
     @app_commands.command(name='equipo', description="Muestra el equipo de desarrollo")
     async def ver_equipo(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True) # Evita el error 10062
         # Ordenamos: Wilber primero, Renso segundo, los demás después
         query = """
         SELECT * FROM bot_admins 
@@ -211,19 +212,31 @@ class Admin(commands.GroupCog, name="admin"):
         admins = await db.fetch_all(query)
         texto = "\n".join([f"• <@{a['discord_id']}> - **{a['rol']}**" for a in admins])
         embed = Embed(title="👥 Equipo de Desarrollo", description=texto, color=Color.gold())
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.followup.send(embed=embed, ephemeral=True)
+
+    async def admin_autocomplete(self, interaction: discord.Interaction, current: str):
+        """Autocompletado para mostrar solo administradores actuales"""
+        query = "SELECT nombre_referencia, discord_id FROM bot_admins WHERE nombre_referencia LIKE %s"
+        admins = await db.fetch_all(query, (f"%{current}%",))
+        return [
+            app_commands.Choice(name=a['nombre_referencia'], value=str(a['discord_id']))
+            for a in admins 
+            if a['discord_id'] not in [824692049084678144, 615932763161362636] # No permitimos elegir a los fundadores
+        ]
 
     @app_commands.command(name='eliminar_equipo', description="Quita a un miembro del equipo de desarrollo")
-    async def eliminar_equipo(self, interaction: discord.Interaction, usuario: discord.User):
+    @app_commands.autocomplete(usuario_id=admin_autocomplete)
+    async def eliminar_equipo(self, interaction: discord.Interaction, usuario_id: str):
         await interaction.response.defer(ephemeral=True)
         
-        # Protegemos a Wilber y a Renso para que no se puedan eliminar a sí mismos por error
-        if usuario.id in [824692049084678144, 615932763161362636]:
+        id_int = int(usuario_id)
+        # Protegemos a Wilber y a Renso (aunque el autocomplete ya los filtra, por seguridad extra)
+        if id_int in [824692049084678144, 615932763161362636]:
             return await interaction.followup.send("❌ No puedes eliminar a los fundadores del equipo.", ephemeral=True)
             
         query = "DELETE FROM bot_admins WHERE discord_id = %s"
-        await db.execute_query(query, (usuario.id,))
-        await interaction.followup.send(f"✅ **{usuario.name}** ha sido quitado del equipo.", ephemeral=True)
+        await db.execute_query(query, (id_int,))
+        await interaction.followup.send(f"✅ Usuario eliminado del equipo.", ephemeral=True)
 
 async def setup(bot):
     await bot.add_cog(Admin(bot))
