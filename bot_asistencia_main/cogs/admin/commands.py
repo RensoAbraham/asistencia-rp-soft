@@ -197,11 +197,33 @@ class Admin(commands.GroupCog, name="admin"):
 
     @app_commands.command(name='equipo', description="Muestra el equipo de desarrollo")
     async def ver_equipo(self, interaction: discord.Interaction):
-        query = "SELECT * FROM bot_admins ORDER BY rol DESC"
+        # Ordenamos: Wilber primero, Renso segundo, los demás después
+        query = """
+        SELECT * FROM bot_admins 
+        ORDER BY 
+            CASE 
+                WHEN discord_id = 824692049084678144 THEN 1 -- Wilber
+                WHEN discord_id = 615932763161362636 THEN 2 -- Renso
+                ELSE 3 
+            END ASC, 
+            rol DESC
+        """
         admins = await db.fetch_all(query)
         texto = "\n".join([f"• <@{a['discord_id']}> - **{a['rol']}**" for a in admins])
         embed = Embed(title="👥 Equipo de Desarrollo", description=texto, color=Color.gold())
         await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @app_commands.command(name='eliminar_equipo', description="Quita a un miembro del equipo de desarrollo")
+    async def eliminar_equipo(self, interaction: discord.Interaction, usuario: discord.User):
+        await interaction.response.defer(ephemeral=True)
+        
+        # Protegemos a Wilber y a Renso para que no se puedan eliminar a sí mismos por error
+        if usuario.id in [824692049084678144, 615932763161362636]:
+            return await interaction.followup.send("❌ No puedes eliminar a los fundadores del equipo.", ephemeral=True)
+            
+        query = "DELETE FROM bot_admins WHERE discord_id = %s"
+        await db.execute_query(query, (usuario.id,))
+        await interaction.followup.send(f"✅ **{usuario.name}** ha sido quitado del equipo.", ephemeral=True)
 
 async def setup(bot):
     await bot.add_cog(Admin(bot))
